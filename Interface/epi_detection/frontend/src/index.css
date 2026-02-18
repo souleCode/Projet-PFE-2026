@@ -1,0 +1,114 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+@layer base {
+  :root {
+    --background: 40 40% 96%; /* beige clair */
+    --foreground: 220 20% 18%; /* gris foncé */
+
+    --card: 40 40% 98%;
+    --card-foreground: 220 20% 18%;
+
+    --popover: 40 40% 98%;
+    --popover-foreground: 220 20% 18%;
+
+    --primary: 32 95% 52%;
+    --primary-foreground: 40 40% 96%;
+
+    --secondary: 40 30% 92%;
+    --secondary-foreground: 220 20% 18%;
+
+    --muted: 40 30% 90%;
+    --muted-foreground: 220 10% 45%;
+
+    --accent: 32 95% 52%;
+    --accent-foreground: 220 20% 18%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 40 40% 96%;
+
+    --success: 142 72% 42%;
+    --success-foreground: 40 40% 96%;
+
+    --warning: 45 93% 47%;
+    --warning-foreground: 220 20% 18%;
+
+    --border: 40 20% 85%;
+    --input: 40 20% 85%;
+    --ring: 32 95% 52%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 40 30% 92%;
+    --sidebar-foreground: 220 20% 18%;
+    --sidebar-primary: 32 95% 52%;
+    --sidebar-primary-foreground: 40 40% 96%;
+    --sidebar-accent: 40 30% 90%;
+    --sidebar-accent-foreground: 220 20% 18%;
+    --sidebar-border: 40 20% 85%;
+    --sidebar-ring: 32 95% 52%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+}
+
+@layer utilities {
+  .font-mono-tech {
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .glow-primary {
+    box-shadow: 0 0 20px hsl(32 95% 52% / 0.3), 0 0 60px hsl(32 95% 52% / 0.1);
+  }
+
+  .glow-danger {
+    box-shadow: 0 0 20px hsl(0 72% 51% / 0.4), 0 0 60px hsl(0 72% 51% / 0.15);
+  }
+
+  .glow-success {
+    box-shadow: 0 0 20px hsl(142 72% 42% / 0.3), 0 0 60px hsl(142 72% 42% / 0.1);
+  }
+
+  .scan-line {
+    background: linear-gradient(
+      180deg,
+      transparent 0%,
+      hsl(32 95% 52% / 0.05) 50%,
+      transparent 100%
+    );
+    animation: scan 3s linear infinite;
+  }
+
+  @keyframes scan {
+    0% { transform: translateY(-100%); }
+    100% { transform: translateY(100%); }
+  }
+
+  @keyframes pulse-alert {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .animate-pulse-alert {
+    animation: pulse-alert 0.8s ease-in-out infinite;
+  }
+
+  @keyframes border-glow {
+    0%, 100% { border-color: hsl(0 72% 51% / 0.8); }
+    50% { border-color: hsl(0 72% 51% / 0.3); }
+  }
+
+  .animate-border-glow {
+    animation: border-glow 1s ease-in-out infinite;
+  }
+}
