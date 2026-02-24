@@ -127,7 +127,7 @@ class RefreshTokenView(APIView):
 # =============== Utilisateurs =====================
 
 class RegisterView(generics.CreateAPIView):
-    """POST /api/users/register/  →  Admin seulement"""
+    """POST /api/users/register/  --->  Admin seulement"""
     serializer_class   = RegisterSerializer
     permission_classes = [IsAdmin]
 
@@ -165,9 +165,6 @@ class MeView(generics.RetrieveUpdateAPIView):
 
     def get_object(self):
         # Log des cookies reçus pour debug
-        import logging
-        logger = logging.getLogger("django.request")
-        logger.info(f"Cookies reçus sur /api/users/me/ : {self.request.COOKIES}")
         return self.request.user
 
 

@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
 
 type Alert = {
   id: number;
-  camera_id: string;
+  camera: number | string;
+  camera_name?: string;
   timestamp: string;
   epi_missing: string[];
   criticity: string;
-  image_path?: string;
+  image_url?: string;
   status: string;
 };
 
@@ -18,35 +18,27 @@ const STATUS_LABELS = {
 };
 
 export default function Alerts() {
-  const [alerts, setAlerts] = useState<Alert[]>([
-    {
-      id: 1,
-      camera_id: "CAM-01",
-      timestamp: "2026-02-16T10:15:00Z",
-      epi_missing: ["hardhat", "gloves"],
-      criticity: "élevée",
-      image_path: "incidents/incident1.jpg",
-      status: "nouveau",
-    },
-    {
-      id: 2,
-      camera_id: "CAM-02",
-      timestamp: "2026-02-16T11:20:00Z",
-      epi_missing: ["safety_vest"],
-      criticity: "moyenne",
-      image_path: "incidents/incident2.jpg",
-      status: "en_cours",
-    },
-    {
-      id: 3,
-      camera_id: "CAM-03",
-      timestamp: "2026-02-16T12:30:00Z",
-      epi_missing: ["mask"],
-      criticity: "faible",
-      image_path: "incidents/incident3.jpg",
-      status: "résolu",
-    },
-  ]);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [count, setCount] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [loading, setLoading] = useState(false);
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`${API_BASE_URL}/api/alerts/?page=${page}&page_size=${pageSize}`, { credentials: "include" })
+      .then(res => res.json())
+      .then(data => {
+        setAlerts(Array.isArray(data) ? data : data.results || []);
+        setCount(data.count || (Array.isArray(data) ? data.length : 0));
+      })
+      .catch(() => {
+        setAlerts([]);
+        setCount(0);
+      })
+      .finally(() => setLoading(false));
+  }, [page, pageSize]);
 
   // Simule le changement de statut localement
   const updateStatus = (id: number, status: string) => {
@@ -55,9 +47,37 @@ export default function Alerts() {
     );
   };
 
+  const totalPages = Math.ceil(count / pageSize);
+
   return (
     <div className="p-4">
       <h2 className="font-bold text-2xl mb-6 text-primary">Alertes</h2>
+      <div className="mb-4 flex items-center gap-4">
+        <span className="text-sm text-muted-foreground">Page {page} / {totalPages || 1}</span>
+        <button
+          className="px-2 py-1 rounded bg-muted text-muted-foreground border hover:bg-primary/10 disabled:opacity-50"
+          onClick={() => setPage((p) => Math.max(1, p - 1))}
+          disabled={page === 1 || loading}
+        >Précédent</button>
+        <button
+          className="px-2 py-1 rounded bg-muted text-muted-foreground border hover:bg-primary/10 disabled:opacity-50"
+          onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+          disabled={page === totalPages || loading}
+        >Suivant</button>
+        <label className="ml-4 text-sm">Taille page:
+          <select
+            className="ml-2 border rounded px-1 py-0.5"
+            value={pageSize}
+            onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }}
+            disabled={loading}
+          >
+            {[5, 10, 20, 50].map(size => (
+              <option key={size} value={size}>{size}</option>
+            ))}
+          </select>
+        </label>
+        {loading && <span className="ml-4 text-xs text-muted-foreground">Chargement...</span>}
+      </div>
       <div className="overflow-x-auto rounded-lg border border-border bg-card shadow">
         <table className="min-w-full text-sm">
           <thead className="bg-muted text-muted-foreground">
@@ -73,7 +93,7 @@ export default function Alerts() {
           <tbody>
             {alerts.map((alert) => (
               <tr key={alert.id} className="border-b last:border-b-0 hover:bg-primary/5 transition-colors">
-                <td className="px-4 py-2 font-mono text-xs">{alert.camera_id}</td>
+                <td className="px-4 py-2 font-mono text-xs">{alert.camera_name || alert.camera}</td>
                 <td className="px-4 py-2">
                   {alert.epi_missing.map((epi) => (
                     <span key={epi} className="inline-block bg-yellow-100 text-yellow-800 rounded px-2 py-0.5 text-xs font-semibold mr-1 mb-1">
@@ -93,15 +113,17 @@ export default function Alerts() {
                   </span>
                 </td>
                 <td className="px-4 py-2">
-                  {alert.image_path && (
+                  {alert.image_url ? (
                     <a
-                      href={`/${alert.image_path}`}
+                      href={alert.image_url}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="underline text-primary hover:text-primary/80"
                     >
-                      Voir
+                      <img src={alert.image_url} alt="Capture incident" className="h-10 w-16 object-cover rounded border" />
                     </a>
+                  ) : (
+                    <span className="text-muted-foreground text-xs">—</span>
                   )}
                 </td>
                 <td className="px-4 py-2">

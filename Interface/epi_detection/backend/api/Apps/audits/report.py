@@ -10,7 +10,7 @@ from reportlab.platypus import (
 )
 
 
-# ── Palette ───────────────────────────────────────────────────────────────────
+# =============== Palette ============================
 COLOR_PRIMARY  = colors.HexColor('#1e40af')
 COLOR_DANGER   = colors.HexColor('#dc2626')
 COLOR_WARNING  = colors.HexColor('#d97706')
@@ -49,7 +49,7 @@ def generate_audit_pdf(audit) -> BytesIO:
     styles  = getSampleStyleSheet()
     story   = []
 
-    # ── Styles personnalisés ──────────────────────────────────────────────────
+    # ===================== Styles personnalisés ========================
     title_style = ParagraphStyle(
         'CustomTitle',
         parent    = styles['Title'],
@@ -70,13 +70,13 @@ def generate_audit_pdf(audit) -> BytesIO:
     normal.fontSize  = 10
     normal.leading   = 14
 
-    # ── En-tête ───────────────────────────────────────────────────────────────
+    # ================ En-tête ==================
     story.append(Paragraph("RAPPORT D'AUDIT EPI", title_style))
     story.append(Paragraph(audit.title, styles['Heading1']))
     story.append(HRFlowable(width='100%', thickness=2, color=COLOR_PRIMARY))
     story.append(Spacer(1, 0.4 * cm))
 
-    # ── Infos générales ───────────────────────────────────────────────────────
+    # ============ Infos générales ===========================
     story.append(Paragraph("Informations générales", section_style))
 
     status_labels = {'ouvert': 'Ouvert', 'en_cours': 'En cours', 'clos': 'Clos'}
@@ -99,7 +99,7 @@ def generate_audit_pdf(audit) -> BytesIO:
     ]))
     story.append(info_table)
 
-    # ── Alerte liée ───────────────────────────────────────────────────────────
+    # ================ Alerte liée ==================
     if audit.alert:
         alert = audit.alert
         story.append(Paragraph("Alerte associée", section_style))
@@ -128,12 +128,12 @@ def generate_audit_pdf(audit) -> BytesIO:
         ]))
         story.append(alert_table)
 
-    # ── Notes ─────────────────────────────────────────────────────────────────
+    # ============= Notes =====================
     if audit.notes:
         story.append(Paragraph("Notes", section_style))
         story.append(Paragraph(audit.notes, normal))
 
-    # ── Captures ──────────────────────────────────────────────────────────────
+    # ============ Captures =======================
     captures = audit.captures.all()
     if captures.exists():
         story.append(Paragraph(f"Captures d'écran ({captures.count()})", section_style))
@@ -155,7 +155,7 @@ def generate_audit_pdf(audit) -> BytesIO:
 
             story.append(Spacer(1, 0.4 * cm))
 
-    # ── Pied de page ──────────────────────────────────────────────────────────
+    # =============== Pied de page =============================
     story.append(Spacer(1, 1 * cm))
     story.append(HRFlowable(width='100%', thickness=1, color=COLOR_BORDER))
     story.append(Paragraph(

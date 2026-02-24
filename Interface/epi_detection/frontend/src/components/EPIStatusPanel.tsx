@@ -13,7 +13,6 @@ interface EPIStatusPanelProps {
 
 const iconMap: Record<string, ReactNode> = {
   ear_protection: <Ear size={20} />,
-  person: <User size={20} />,
   hardhat: <HardHat size={20} />,
   mask: <Shield size={20} />,
   safety_boots: <Footprints size={20} />,
@@ -23,7 +22,6 @@ const iconMap: Record<string, ReactNode> = {
 
 const labelMap: Record<string, string> = {
   ear_protection: "Protection auditive",
-  person: "Agent",
   hardhat: "Casque",
   mask: "Masque",
   safety_boots: "Chaussures de sécurité",

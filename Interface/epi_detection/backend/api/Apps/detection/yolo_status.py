@@ -30,7 +30,7 @@ COLORS = {
     "person":  "#3b82f6",  # bleu  - personne
 }
 
-EPI_CLASSES = ["hardhat", "vest", "glass"]
+EPI_CLASSES = ["hardhat", "vest", "glass","mask", "safety_boots", "ear_protection"]
 
 
 def iou(box1, box2):
@@ -54,7 +54,7 @@ def iou(box1, box2):
     return inter_area / union_area if union_area > 0 else 0.0
 
 
-def is_epi_worn(person_bbox, epi_bbox, iou_threshold=0.1):
+def is_epi_worn(person_bbox, epi_bbox, iou_threshold=0.03):
     """
     Vérifie si un EPI est porté par une personne.
     Un EPI est considéré "porté" si son IoU avec la personne > seuil.
@@ -75,7 +75,7 @@ def run_detection_with_status(image):
     results = model(image)
 
     persons = []
-    epis    = {}  # {epi_class: [(bbox, conf), ...]}
+    epis    = {}  
 
     # ============================ Séparer détections person vs EPI ==========================
     for r in results:
@@ -115,7 +115,7 @@ def run_detection_with_status(image):
                     "confidence": epi["conf"],
                     "bbox":       epi["bbox"],
                     "color":      COLORS["worn"],
-                    "status":     "worn",  # 🟢 porté
+                    "status":     "worn",  #  porté
                 })
             else:
                 free_epis[epi_class].append(epi)
@@ -124,7 +124,7 @@ def run_detection_with_status(image):
                     "confidence": epi["conf"],
                     "bbox":       epi["bbox"],
                     "color":      COLORS["present"],
-                    "status":     "present",  # 🟡 présent mais non porté
+                    "status":     "present",  # présent mais non porté
                 })
 
     # ======================Ajouter les personnes (rouge si EPI manquant) ======================
@@ -136,9 +136,21 @@ def run_detection_with_status(image):
         person_has_vest = any(
             is_epi_worn(person["bbox"], epi["bbox"]) for epi in epis.get("vest", [])
         )
+        person_has_mask = any(
+            is_epi_worn(person["bbox"], epi["bbox"]) for epi in epis.get("mask", [])
+        )
+        person_has_glass = any(
+            is_epi_worn(person["bbox"], epi["bbox"]) for epi in epis.get("glass", [])
+        )
+        person_has_boots = any(
+            is_epi_worn(person["bbox"], epi["bbox"]) for epi in epis.get("safety_boots", [])
+        )
+        person_has_ear = any(
+            is_epi_worn(person["bbox"], epi["bbox"]) for epi in epis.get("ear_protection", [])
+        )
 
         # Couleur : rouge si un EPI manque, sinon bleu
-        is_compliant = person_has_hardhat and person_has_vest
+        is_compliant = person_has_hardhat and person_has_vest and person_has_mask and person_has_glass and person_has_boots and person_has_ear
         person_color = COLORS["person"] if is_compliant else COLORS["missing"]
 
         detections.append({
@@ -149,6 +161,30 @@ def run_detection_with_status(image):
             "status":     "compliant" if is_compliant else "missing_epi",
         })
 
+        # Ajout d'une entrée pour chaque EPI manquant
+        if not is_compliant:
+            missing_epis = []
+            if not person_has_hardhat:
+                missing_epis.append("hardhat")
+            if not person_has_vest:
+                missing_epis.append("vest")
+            if not person_has_mask:
+                missing_epis.append("mask")
+            if not person_has_glass:
+                missing_epis.append("glass")
+            if not person_has_boots:
+                missing_epis.append("safety_boots")
+            if not person_has_ear:
+                missing_epis.append("ear_protection")
+            for epi in missing_epis:
+                detections.append({
+                    "class": epi,
+                    "confidence": None,
+                    "bbox": person["bbox"],
+                    "color": COLORS["missing"],
+                    "status": "missing_epi",
+                })
+
     #========================== Stats globales =====================================
     stats = {
         "total":         len(detections),
@@ -156,9 +192,16 @@ def run_detection_with_status(image):
         "hardhat_worn":  len(worn_epis["hardhat"]),
         "vest_worn":     len(worn_epis["vest"]),
         "glass_worn":    len(worn_epis["glass"]),
+        "mask_worn":     len(worn_epis["mask"]),
+        "boots_worn":    len(worn_epis["safety_boots"]),
+        "ear_worn":      len(worn_epis["ear_protection"]),
+
         "hardhat_free":  len(free_epis["hardhat"]),
         "vest_free":     len(free_epis["vest"]),
         "glass_free":    len(free_epis["glass"]),
+        "mask_free":     len(free_epis["mask"]),
+        "boots_free":    len(free_epis["safety_boots"]),
+        "ear_free":      len(free_epis["ear_protection"]),
     }
 
     # Conformité : tous les EPI obligatoires portés ?
@@ -167,7 +210,14 @@ def run_detection_with_status(image):
         missing_epi.append("hardhat")
     if stats["vest_worn"] == 0:
         missing_epi.append("vest")
-
+    if stats["mask_worn"] == 0:
+        missing_epi.append("mask")
+    if stats["glass_worn"] == 0:
+        missing_epi.append("glass")
+    if stats["boots_worn"] == 0:
+        missing_epi.append("safety_boots")
+    if stats["ear_worn"] == 0:
+        missing_epi.append("ear_protection")
     stats["compliance"]     = len(missing_epi) == 0
     stats["missing_epi"]    = missing_epi
     stats["processingTime"] = round(

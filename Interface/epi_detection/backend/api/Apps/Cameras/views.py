@@ -13,8 +13,8 @@ from Apps.Users.permissions import IsAdmin, IsAdminOrSuperviseur
 
 class CameraListCreateView(generics.ListCreateAPIView):
     """
-    GET  /api/cameras/        → Liste toutes les caméras
-    POST /api/cameras/        → Crée une caméra (Admin seulement)
+    GET  /api/cameras/         Liste toutes les caméras
+    POST /api/cameras/         Crée une caméra (Admin seulement)
     """
     queryset = Camera.objects.all()
 

@@ -1,5 +1,8 @@
 from PIL import Image
 import io
+from collections import Counter
+from datetime import timedelta
+from django.utils import timezone
 
 from django.utils import timezone
 from rest_framework import generics, status
@@ -66,14 +69,25 @@ class DetectView(APIView):
             processing_time = stats.get('processingTime', 0.0),
         )
 
-        # Créer une alerte si EPI manquants
+        # Créer une alerte si EPI manquants attendus par la règle HSE de la caméra
         if not is_compliant and camera:
-            create_alert_if_needed(
-                camera      = camera,
-                missing_epi = stats.get('missing_epi', []),
-                image_file  = file,
-                detection_log = log,
-            )
+            # Récupérer les EPI attendus pour cette caméra (via la règle HSE active)
+            hse_rules = camera.hse_rules.filter(is_active=True)
+            epis_attendus = set()
+            for rule in hse_rules:
+                for epi in rule.epi_criticites:
+                    if isinstance(epi, dict):
+                        epis_attendus.add(epi.get('epi'))
+                    else:
+                        epis_attendus.add(epi)
+            missing_epi = [epi for epi in stats.get('missing_epi', []) if epi in epis_attendus]
+            if missing_epi:
+                create_alert_if_needed(
+                    camera      = camera,
+                    missing_epi = missing_epi,
+                    image_file  = file,
+                    detection_log = log,
+                )
 
         return Response({
             'detections': detections,
@@ -128,7 +142,6 @@ class DetectionStatsView(APIView):
 
     def get(self, request):
         qs = DetectionLog.objects.all()
-
         camera_id = request.query_params.get('camera_id')
         if camera_id:
             qs = qs.filter(camera__id=camera_id)
@@ -138,9 +151,44 @@ class DetectionStatsView(APIView):
         non_compliant = total - compliant
         rate         = round((compliant / total * 100), 1) if total > 0 else 0.0
 
+        # Incidents cette semaine (par jour)
+        today = timezone.now().date()
+        week_days = []
+        for i in range(6, -1, -1):  # 6 jours avant aujourd'hui jusqu'à aujourd'hui
+            day = today - timedelta(days=i)
+            count = qs.filter(timestamp__date=day).count()
+            week_days.append({
+                "day": day.strftime("%a %d/%m"),
+                "incidents": count
+            })
+
+        # Calcul des types d'incidents (exemple: EPI manquants)
+        epi_counter = Counter()
+        for log in qs.filter(is_compliant=False):
+            # Supposons que detections_json est une liste de dicts avec 'class' ou 'epi' pour l'EPI manquant
+            for det in log.detections_json:
+                if det.get('status') == 'missing_epi':
+                    epi = det.get('class') or det.get('epi')
+                    if epi:
+                        epi_counter[epi] += 1
+
+        # Génère la liste pour le frontend
+        total_incidents = sum(epi_counter.values())
+        incident_types = []
+        COLORS = ["#F87171", "#FBBF24", "#34D399", "#60A5FA", "#A78BFA", "#F472B6", "#F59E42"]
+        for i, (epi, count) in enumerate(epi_counter.items()):
+            percent = round((count / total_incidents) * 100, 1) if total_incidents else 0
+            incident_types.append({
+                "name": epi,
+                "value": percent,
+                "color": COLORS[i % len(COLORS)]
+            })
+
         return Response({
             'total':          total,
             'compliant':      compliant,
             'non_compliant':  non_compliant,
             'compliance_rate': rate,
+            'weekly_incidents': week_days,  # <-- Ajouté ici
+            'incident_types': incident_types,  # <-- Ajouté ici
         })

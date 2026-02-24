@@ -1,11 +1,11 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Camera, CameraOff, AlertTriangle, Maximize2, Volume2, VolumeX } from "lucide-react";
 import WebcamFeed from "@/components/WebcamFeed";
 import EPIStatusPanel, { type EPIStatus } from "@/components/EPIStatusPanel";
 import BuzzerAlert from "@/components/BuzzerAlert";
 
 const EPI_CLASSES = [
-  "ear_protection", "person", "hardhat", "mask",
+  "ear_protection", "hardhat", "mask",
   "safety_boots", "safety_glasses", "vest",
 ];
 
@@ -18,70 +18,78 @@ const mockCameras = [
   { pk: 6, id: "CAM-06", name: "Parking engins", zone: "Zone F", status: "online" },
 ];
 
+// Pour chaque caméra, stocker la liste des EPI à surveiller (avec criticité)
 
-// Pour chaque caméra, stocker la liste des EPI à surveiller
-type CamEPIConfig = Record<string, string[]>; // { "CAM-01": ["hardhat", ...], ... }
+type EpiCriticite = { epi: string; criticite: string };
+type HSERule = {
+  id: number;
+  name: string;
+  epi_criticites: EpiCriticite[];
+  [key: string]: any;
+};
+type CameraType = {
+  pk?: number;
+  id: number | string;
+  name: string;
+  zone?: string;
+  status?: string;
+  hse_rules?: HSERule[];
+  [key: string]: any;
+};
 
 const Cameras = () => {
-  const [selectedCam, setSelectedCam] = useState<number>(mockCameras[0].pk);
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+
+  // mockCameras comme fallback initial, remplacé si le backend répond
+  const [cameras, setCameras] = useState<CameraType[]>(mockCameras);
+  const [selectedCam, setSelectedCam] = useState<number | string>(mockCameras[0].id);
   const [muted, setMuted] = useState(false);
   const [detectionActive, setDetectionActive] = useState(false);
   const [epiStatuses, setEpiStatuses] = useState<EPIStatus[]>(
     EPI_CLASSES.map((id) => ({ id, label: id, detected: true }))
   );
-  // Config EPI par caméra (par défaut tous activés)
-  const [camEpiConfig, setCamEpiConfig] = useState<CamEPIConfig>(() => {
-    const initial: CamEPIConfig = {};
-    mockCameras.forEach(cam => { initial[cam.pk] = [...EPI_CLASSES]; });
-    return initial;
-  });
+  // Charger la liste des caméras (avec hse_rules) depuis le backend
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/cameras/`, { credentials: "include" })
+      .then(res => res.json())
+      .then(data => {
+        console.log('Réponse API /api/cameras/', data);
+        const cams = Array.isArray(data) ? data : data.results || [];
+        if (cams.length > 0) {
+          setCameras(cams);
+          setSelectedCam(cams[0].id);
+        }
+      });
+  }, []);
 
 
-  // EPI à surveiller pour la caméra sélectionnée
-  const selectedEpis = camEpiConfig[selectedCam] || [];
-
-  // Filtrer les statuts EPI selon la config de la caméra
+  // Trouver la caméra sélectionnée
+  const selectedCamera = cameras.find(cam => String(cam.id) === String(selectedCam));
+  // On prend la première règle HSE associée à la caméra (si plusieurs, on peut adapter)
+  const selectedEpiCriticites = selectedCamera?.hse_rules?.[0]?.epi_criticites || [];
+  // Liste des EPI à surveiller (ids)
+  const selectedEpis = selectedEpiCriticites.map(ec => ec.epi);
+  // Statuts filtrés
   const filteredEpiStatuses = epiStatuses.filter(s => selectedEpis.includes(s.id));
-
   const missingCount = filteredEpiStatuses.filter((s) => !s.detected).length;
   const isAlerted = detectionActive && missingCount > 0;
 
-
-  // Synchronise les statuts EPI avec la détection backend
-  // Synchronise les statuts EPI avec la détection backend (statut/couleur)
   const handleDetection = (detections: any[]) => {
     setDetectionActive(true);
     setEpiStatuses((prev) =>
       prev.map((epi) => {
-        // Cherche la détection correspondante
         const det = detections.find((d: any) => d.class === epi.id);
-        // Statut backend : worn (vert), present (jaune), missing_epi (rouge)
         let detected = false;
         if (det) {
           detected = det.status === "worn";
         }
-        return {
-          ...epi,
-          detected,
-          // Optionnel : on pourrait aussi ajouter une propriété "color" si besoin
-        };
+        return { ...epi, detected };
       })
     );
   };
 
-  // Handler pour changer la config EPI d'une caméra
-  const handleEpiConfigChange = (epiId: string) => {
-    setCamEpiConfig((prev) => {
-      const current = prev[selectedCam] || [];
-      let next: string[];
-      if (current.includes(epiId)) {
-        next = current.filter((id) => id !== epiId);
-      } else {
-        next = [...current, epiId];
-      }
-      return { ...prev, [selectedCam]: next };
-    });
-  };
+
+  // Suppression de handleEpiConfigChange : la config EPI vient du backend
 
   return (
     <div className="p-6 space-y-4 h-full flex flex-col">
@@ -101,19 +109,17 @@ const Cameras = () => {
         <div className="flex flex-col gap-4 min-h-0">
           {/* Live feed */}
           <div className="flex-1 min-h-[400px]">
-            <WebcamFeed isAlerted={isAlerted} cameraId={selectedCam.toString()} watchedEpis={selectedEpis} onDetection={handleDetection} />
+            <WebcamFeed isAlerted={isAlerted} cameraId={selectedCamera?.pk ? String(selectedCamera.pk) : ""} watchedEpis={selectedEpis} onDetection={handleDetection} />
           </div>
 
           {/* Camera grid */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-            {mockCameras.map((cam) => (
+            {cameras.map((cam) => (
               <button
-                key={cam.pk}
-                onClick={() => setSelectedCam(cam.pk)}
+                key={cam.id}
+                onClick={() => setSelectedCam(cam.id)}
                 className={`p-3 rounded-lg border text-left transition-colors ${
-                  selectedCam === cam.pk
-                    ? "border-primary bg-primary/5"
-                    : "border-border bg-card hover:border-primary/30"
+                  String(selectedCam) === String(cam.id) ? "border-primary bg-primary/5" : "border-border bg-card hover:border-primary/30"
                 }`}
               >
                 <div className="flex items-center gap-2 mb-1">
@@ -139,23 +145,21 @@ const Cameras = () => {
             </h2>
           </div>
 
-          {/* Config EPI à surveiller */}
+          {/* Affiche uniquement les EPI liés à la caméra (via la règle) */}
           <div className="mb-2">
             <div className="text-xs font-mono text-muted-foreground mb-1">
-              Configurer les EPI à surveiller :
+              EPI surveillés pour cette caméra :
             </div>
             <div className="flex flex-wrap gap-2">
-              {EPI_CLASSES.map((epi) => (
-                <label key={epi} className="flex items-center gap-1 text-xs cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={selectedEpis.includes(epi)}
-                    onChange={() => handleEpiConfigChange(epi)}
-                    className="accent-primary"
-                  />
-                  <span>{epi}</span>
-                </label>
-              ))}
+              {selectedEpiCriticites.length === 0 ? (
+                <span className="text-xs text-muted-foreground">Aucune règle HSE associée</span>
+              ) : (
+                selectedEpiCriticites.map(ec => (
+                  <span key={ec.epi + '-' + ec.criticite} className="px-2 py-0.5 rounded bg-muted text-xs font-mono">
+                    {ec.epi} <span className="italic">({ec.criticite})</span>
+                  </span>
+                ))
+              )}
             </div>
           </div>
 

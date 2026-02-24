@@ -149,21 +149,18 @@ const WebcamFeed = ({ isAlerted, cameraId, watchedEpis, onDetection }: WebcamFee
     if (!isActive || detections.length === 0) return;
 
     canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-
-    console.log("Drawing", detections.length, "detections");
-    
+    canvas.height = video.videoHeight;    
     detections.forEach(det => {
       const [x1, y1, x2, y2] = det.bbox;
-      console.log("Drawing bbox:", det.class, det.bbox);
-      
+      // console.log("Drawing bbox:", det.class, det.bbox);
+
       ctx.strokeStyle = det.color;
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 3; // Augmente l'épaisseur du rectangle
       ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
-      
-      ctx.font = "18px monospace";
+
+      ctx.font = "10px monospace"; // Texte plus grand pour la classe
       ctx.fillStyle = det.color;
-      ctx.fillText(`${det.class} ${(det.confidence*100).toFixed(0)}%`, x1 + 4, y1 + 22);
+      ctx.fillText(`${det.class} ${(det.confidence*100).toFixed(0)}%`, x1 + 4, y1 + 36);
     });
   }, [detections, isActive]);
 

@@ -9,6 +9,7 @@ DEBUG = config('DEBUG', default=True, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='*').split(',')
 
 INSTALLED_APPS = [
+    'jazzmin',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -26,6 +27,7 @@ INSTALLED_APPS = [
     'Apps.detection',
     'Apps.alertes',
     'Apps.audits',
+    'Apps.RegleSHE',
     ## extensions
     'django_extensions',
 ]
@@ -77,6 +79,8 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 10,  # Nombre d'alertes par page par défaut (modifiable via ?page_size=...)
 }
 
 # ================== JWT============================

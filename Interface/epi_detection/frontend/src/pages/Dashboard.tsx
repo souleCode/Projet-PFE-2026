@@ -1,9 +1,9 @@
-import {AlertTriangle,
+import React, { useEffect, useState } from "react";
+import {
+  AlertTriangle,
   ShieldX,
   Camera,
   Cpu,
-  TrendingUp,
-  TrendingDown,
   User as UserIcon,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
@@ -15,167 +15,115 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  LineChart,
-  Line,
   PieChart,
   Pie,
   Cell,
 } from "recharts";
 
-const stats = [
+const statsTemplate = [
   {
-    label: "Alertes critiques",
-    value: 5,
-   
+    label: "Détections totales",
+    value: 0,
     icon: AlertTriangle,
-    color: "text-destructive",
-    bg: "bg-destructive/10 border-destructive/20",
+    color: "text-primary",
+    bg: "bg-primary/10 border-primary/20",
   },
   {
-    label: "Non-conformités EPI",
-    value: 12,
-   
+    label: "Conformités EPI",
+    value: 0,
     icon: ShieldX,
-    color: "text-warning",
-    bg: "bg-warning/10 border-warning/20",
-  },
-  {
-    label: "Caméras en ligne",
-    value: 6,
-  
-    icon: Camera,
     color: "text-success",
     bg: "bg-success/10 border-success/20",
   },
   {
-    label: "Edge Devices actifs",
-    value: 4,
-    
+    label: "Non-conformités EPI",
+    value: 0,
+    icon: ShieldX,
+    color: "text-destructive",
+    bg: "bg-destructive/10 border-destructive/20",
+  },
+  {
+    label: "Taux conformité (%)",
+    value: 0,
     icon: Cpu,
-    color: "text-primary",
-    bg: "bg-primary/10 border-primary/20",
+    color: "text-warning",
+    bg: "bg-warning/10 border-warning/20",
+  },
+  {
+    label: "Caméras actives",
+    value: 0,
+    icon: Camera,
+    color: "text-info",
+    bg: "bg-info/10 border-info/20",
   },
 ];
 
-const weeklyIncidents = [
-  { day: "Lun", incidents: 8 },
-  { day: "Mar", incidents: 5 },
-  { day: "Mer", incidents: 12 },
-  { day: "Jeu", incidents: 7 },
-  { day: "Ven", incidents: 15 },
-  { day: "Sam", incidents: 3 },
-  { day: "Dim", incidents: 1 },
-];
-
-const hourlyTrend = Array.from({ length: 24 }, (_, i) => ({
-  hour: `${i}h`,
-  alerts: Math.floor(Math.random() * 10 + (i > 6 && i < 18 ? 5 : 0)),
-}));
-
-const incidentTypes = [
-  { name: "Sans casque", value: 35, color: "hsl(0, 72%, 51%)" },
-  { name: "Sans gilet", value: 25, color: "hsl(45, 93%, 47%)" },
-  { name: "Zone interdite", value: 20, color: "hsl(32, 95%, 52%)" },
-  { name: "Proximité engin", value: 15, color: "hsl(220, 15%, 55%)" },
-  { name: "Autres", value: 5, color: "hsl(220, 15%, 35%)" },
-];
-
-const recentAlerts = [
-  { id: 1, type: "Sans casque", camera: "CAM-03", time: "il y a 5 min", severity: "critical" },
-  { id: 2, type: "Zone interdite", camera: "CAM-01", time: "il y a 12 min", severity: "critical" },
-  { id: 3, type: "Sans gilet", camera: "CAM-05", time: "il y a 23 min", severity: "warning" },
-  { id: 4, type: "Proximité engin", camera: "CAM-02", time: "il y a 45 min", severity: "warning" },
-  { id: 5, type: "Sans lunettes", camera: "CAM-04", time: "il y a 1h", severity: "info" },
-];
-
-const cameras = [
-  { id: "CAM-01", name: "Entrée", active: true },
-  { id: "CAM-02", name: "Zone stockage", active: false },
-  { id: "CAM-03", name: "Sortie", active: true },
-];
-
-const edgeDevices = [
-  { id: "Edge-01", status: "online" },
-  { id: "Edge-02", status: "offline" },
-];
-
-const incidents = [{}, {}, {}];
-const incidentStats = {
-  today: 2,
-  week: 5,
-  resolved: 3,
-  inProgress: 1,
-};
+const weeklyIncidents = [];
+const incidentTypes = [];
+const recentAlerts = [];
+const cameras = [];
+const edgeDevices = [];
 
 const Dashboard = () => {
   const { user } = useAuth();
-  const incidents = [{}, {}, {}];
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
-  const stats = [
-    {
-      label: "Alertes critiques",
-      value: 5,
-      
-      icon: AlertTriangle,
-      color: "text-destructive",
-      bg: "bg-destructive/10 border-destructive/20",
-    },
-    {
-      label: "Non-conformités EPI",
-      value: 12,
-      
-      icon: ShieldX,
-      color: "text-warning",
-      bg: "bg-warning/10 border-warning/20",
-    },
-    {
-      label: "Caméras en ligne",
-      value: 6,
-  
-      icon: Camera,
-      color: "text-success",
-      bg: "bg-success/10 border-success/20",
-    },
-    {
-      label: "Edge Devices actifs",
-      value: 4,
-     
-      icon: Cpu,
-      color: "text-primary",
-      bg: "bg-primary/10 border-primary/20",
-    },
-  ];
+  // States pour les données dynamiques
+  const [stats, setStats] = useState(statsTemplate);
+  const [weeklyIncidents, setWeeklyIncidents] = useState([]);
+  const [incidentTypes, setIncidentTypes] = useState([]);
+  const [recentAlerts, setRecentAlerts] = useState([]);
+  const [cameras, setCameras] = useState([]);
+  const [edgeDevices, setEdgeDevices] = useState([]);
 
-  const weeklyIncidents = [
-    { day: "Lun", incidents: 8 },
-    { day: "Mar", incidents: 5 },
-    { day: "Mer", incidents: 12 },
-    { day: "Jeu", incidents: 7 },
-    { day: "Ven", incidents: 15 },
-    { day: "Sam", incidents: 3 },
-    { day: "Dim", incidents: 1 },
-  ];
+  useEffect(() => {
+    // Récupérer stats incidents/détections
+    fetch(`${API_BASE_URL}/api/detection/stats/`, {
+      credentials: "include"
+    })
+      .then(res => res.json())
+      .then(data => {
+        setStats(prev => [
+          { ...prev[0], value: data.total || 0 },
+          { ...prev[1], value: data.compliant || 0 },
+          { ...prev[2], value: data.non_compliant || 0 },
+          { ...prev[3], value: data.compliance_rate || 0 },
+          { ...prev[4], value: prev[4].value }, // On ne touche pas à la stat Caméras actives ici
+        ]);
+        setWeeklyIncidents(data.weekly_incidents || []);
+        setIncidentTypes(data.incident_types || []);
+      });
 
-  const hourlyTrend = Array.from({ length: 24 }, (_, i) => ({
-    hour: `${i}h`,
-    alerts: Math.floor(Math.random() * 10 + (i > 6 && i < 18 ? 5 : 0)),
-  }));
+    // Récupérer alertes récentes
+    fetch(`${API_BASE_URL}/api/alerts/`, {
+      credentials: "include"
+    })
+      .then(res => res.json())
+      .then(data => setRecentAlerts(data.results || []));
 
-  const incidentTypes = [
-    { name: "Sans casque", value: 35, color: "hsl(0, 72%, 51%)" },
-    { name: "Sans gilet", value: 25, color: "hsl(45, 93%, 47%)" },
-    { name: "Zone interdite", value: 20, color: "hsl(32, 95%, 52%)" },
-    { name: "Proximité engin", value: 15, color: "hsl(220, 15%, 55%)" },
-    { name: "Autres", value: 5, color: "hsl(220, 15%, 35%)" },
-  ];
+    // Récupérer caméras actives
+    fetch(`${API_BASE_URL}/api/cameras/active/`, {
+      credentials: "include"
+    })
+      .then(res => res.json())
+      .then(data => {
+        let cams = [];
+        if (Array.isArray(data)) {
+          cams = data;
+        } else if (Array.isArray(data.results)) {
+          cams = data.results;
+        }
+        setCameras(cams);
+        // Mettre à jour la stat "Caméras actives" après avoir reçu la liste
+        setStats(prev => {
+          const updated = [...prev];
+          if (updated[4]) updated[4].value = cams.length;
+          return updated;
+        });
+      });
 
-  const recentAlerts = [
-    { id: 1, type: "Sans casque", camera: "CAM-03", time: "il y a 5 min", severity: "critical" },
-    { id: 2, type: "Zone interdite", camera: "CAM-01", time: "il y a 12 min", severity: "critical" },
-    { id: 3, type: "Sans gilet", camera: "CAM-05", time: "il y a 23 min", severity: "warning" },
-    { id: 4, type: "Proximité engin", camera: "CAM-02", time: "il y a 45 min", severity: "warning" },
-    { id: 5, type: "Sans lunettes", camera: "CAM-04", time: "il y a 1h", severity: "info" },
-  ];
+   
+  }, []);
 
   return (
     <div className="p-6 space-y-6">
@@ -285,65 +233,26 @@ const Dashboard = () => {
         </div>
       </div>
 
-    
-
-      {/* Nombre d'incidents */}
-      <div className="rounded-lg border border-border bg-card p-6 flex flex-col items-center">
-        <div className="text-4xl font-bold text-red-600">{incidents.length}</div>
-        <div className="text-sm text-gray-500 mt-2">Incidents détectés</div>
-      </div>
-      <div className="rounded-lg border border-border bg-card p-6">
-        <div className="font-semibold mb-2">Statistiques</div>
-        <div className="flex flex-wrap gap-4">
-          <div>
-            <span className="font-bold">{incidentStats.today}</span>
-            <span className="ml-1 text-xs text-gray-500">aujourd'hui</span>
-          </div>
-          <div>
-            <span className="font-bold">{incidentStats.week}</span>
-            <span className="ml-1 text-xs text-gray-500">cette semaine</span>
-          </div>
-          <div>
-            <span className="font-bold">{incidentStats.resolved}</span>
-            <span className="ml-1 text-xs text-green-600">résolus</span>
-          </div>
-          <div>
-            <span className="font-bold">{incidentStats.inProgress}</span>
-            <span className="ml-1 text-xs text-orange-500">en cours</span>
-          </div>
-        </div>
-      </div>
-
       {/* Caméras actives */}
       <div className="rounded-lg border border-border bg-card p-6 mb-6">
         <div className="font-semibold mb-2">Caméras actives</div>
         <div className="flex gap-4">
-          {cameras.map((cam) => (
-            <div
-              key={cam.id}
-              className={`px-4 py-2 rounded border ${
-                cam.active ? "border-green-500 bg-green-50" : "border-gray-300 bg-gray-100 text-gray-400"
-              }`}
-            >
-              <div className="font-bold text-black">{cam.name}</div>
-              <div className="text-xs text-gray-600">{cam.id}</div>
-              <div className={`mt-1 w-2 h-2 rounded-full inline-block ${cam.active ? "bg-green-500" : "bg-gray-400"}`}></div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Statut des Edge devices */}
-      <div className="rounded-lg border border-border bg-card p-6">
-        <div className="font-semibold mb-2">Statut des Edge devices</div>
-        <div className="flex gap-4">
-          {edgeDevices.map((ed) => (
-            <div key={ed.id} className="flex items-center gap-2">
-              <span className={`w-3 h-3 rounded-full ${ed.status === "online" ? "bg-green-500" : "bg-red-500"}`}></span>
-              <span className="font-mono">{ed.id}</span>
-              <span className="text-xs text-gray-500">{ed.status}</span>
-            </div>
-          ))}
+          {Array.isArray(cameras) && cameras.length > 0 ? (
+            cameras.map((cam) => (
+              <div
+                key={cam.id}
+                className={`px-4 py-2 rounded border ${
+                  cam.active ? "border-green-500 bg-green-50" : "border-gray-300 bg-gray-100 text-gray-400"
+                }`}
+              >
+                <div className="font-bold text-black">{cam.name}</div>
+                <div className="text-xs text-gray-600">{cam.id}</div>
+                <div className={`mt-1 w-2 h-2 rounded-full inline-block ${cam.active ? "bg-green-500" : "bg-gray-400"}`}></div>
+              </div>
+            ))
+          ) : (
+            <div className="text-muted-foreground text-xs">Aucune caméra active</div>
+          )}
         </div>
       </div>
     </div>
