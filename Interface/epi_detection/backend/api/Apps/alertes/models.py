@@ -33,6 +33,7 @@ class Alert(models.Model):
         null=True, blank=True,
         related_name='assigned_alerts'
     )
+    first_acknowledged_at = models.DateTimeField(null=True, blank=True)
     resolved_by     = models.ForeignKey(
         User, on_delete=models.SET_NULL,
         null=True, blank=True,

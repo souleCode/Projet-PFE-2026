@@ -20,12 +20,35 @@ const WebcamFeed = ({ isAlerted, cameraId, watchedEpis, onDetection }: WebcamFee
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const latestCameraIdRef = useRef(cameraId);
+  const latestWatchedEpisRef = useRef(watchedEpis);
   const [isActive, setIsActive] = useState(false);
   const [isVideoMode, setIsVideoMode] = useState(false);
   const [videoFileName, setVideoFileName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [detections, setDetections] = useState<Detection[]>([]);
   const detectionInterval = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    latestCameraIdRef.current = cameraId;
+    latestWatchedEpisRef.current = watchedEpis;
+  }, [cameraId, watchedEpis]);
+
+  const runDetection = useCallback(async (blob: Blob) => {
+    try {
+      const result = await detectEPI(
+        blob,
+        latestCameraIdRef.current,
+        latestWatchedEpisRef.current,
+      );
+      setDetections(result.detections || []);
+      if (typeof onDetection === "function") onDetection(result.detections || []);
+    } catch (e) {
+      setDetections([]);
+      if (typeof onDetection === "function") onDetection([]);
+      console.error("Erreur détection EPI:", e);
+    }
+  }, [onDetection]);
 
   const startCamera = useCallback(async () => {
     try {
@@ -48,15 +71,7 @@ const WebcamFeed = ({ isAlerted, cameraId, watchedEpis, onDetection }: WebcamFee
             ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
             canvas.toBlob(async (blob) => {
               if (blob) {
-                try {
-                  const result = await detectEPI(blob, cameraId, watchedEpis);
-                  setDetections(result.detections || []);
-                  if (typeof onDetection === "function") onDetection(result.detections || []);
-                } catch (e) {
-                  setDetections([]);
-                  if (typeof onDetection === "function") onDetection([]);
-                  console.error("Erreur détection EPI:", e);
-                }
+                await runDetection(blob);
               }
             }, "image/jpeg", 0.85);
           }
@@ -65,7 +80,27 @@ const WebcamFeed = ({ isAlerted, cameraId, watchedEpis, onDetection }: WebcamFee
     } catch {
       setError("Impossible d'accéder à la caméra");
     }
-  }, [onDetection]);
+  }, [runDetection]);
+
+  const stopCamera = useCallback(() => {
+    if (videoRef.current?.srcObject) {
+      const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
+      tracks.forEach((t) => t.stop());
+      videoRef.current.srcObject = null;
+    }
+    if (videoRef.current?.src) {
+      URL.revokeObjectURL(videoRef.current.src);
+      videoRef.current.src = "";
+    }
+    setIsActive(false);
+    setIsVideoMode(false);
+    setVideoFileName(null);
+    if (detectionInterval.current) {
+      clearInterval(detectionInterval.current);
+      detectionInterval.current = null;
+    }
+    setDetections([]);
+  }, []);
 
   const handleVideoUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -99,42 +134,14 @@ const WebcamFeed = ({ isAlerted, cameraId, watchedEpis, onDetection }: WebcamFee
             ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
             canvas.toBlob(async (blob) => {
               if (blob) {
-                try {
-                  const result = await detectEPI(blob, cameraId, watchedEpis);
-                  setDetections(result.detections || []);
-                  if (typeof onDetection === "function") onDetection(result.detections || []);
-                } catch (e) {
-                  setDetections([]);
-                  if (typeof onDetection === "function") onDetection([]);
-                  console.error("Erreur détection EPI:", e);
-                }
+                await runDetection(blob);
               }
             }, "image/jpeg", 0.85);
           }
         }, 500);
       };
     }
-  }, []);
-
-  const stopCamera = useCallback(() => {
-    if (videoRef.current?.srcObject) {
-      const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
-      tracks.forEach((t) => t.stop());
-      videoRef.current.srcObject = null;
-    }
-    if (videoRef.current?.src) {
-      URL.revokeObjectURL(videoRef.current.src);
-      videoRef.current.src = "";
-    }
-    setIsActive(false);
-    setIsVideoMode(false);
-    setVideoFileName(null);
-    if (detectionInterval.current) {
-      clearInterval(detectionInterval.current);
-      detectionInterval.current = null;
-    }
-    setDetections([]);
-  }, []);
+  }, [runDetection, stopCamera]);
 
   useEffect(() => {
     if (!canvasRef.current || !videoRef.current) return;

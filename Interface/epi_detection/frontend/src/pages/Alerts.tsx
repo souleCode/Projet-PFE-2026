@@ -1,50 +1,168 @@
-import React, { useEffect, useState } from "react";
-
-type Alert = {
-  id: number;
-  camera: number | string;
-  camera_name?: string;
-  timestamp: string;
-  epi_missing: string[];
-  criticity: string;
-  image_url?: string;
-  status: string;
-};
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { AlertRecord, AlertStatus, AuditRecord, alertApi, auditApi } from "@/lib/api";
 
 const STATUS_LABELS = {
   nouveau: "Nouveau",
   en_cours: "En cours",
-  résolu: "Résolu",
+  resolu: "Résolu",
+  ignore: "Ignoré",
 };
 
+const STATUS_ORDER: AlertStatus[] = ["nouveau", "en_cours", "resolu"];
+
 export default function Alerts() {
-  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const navigate = useNavigate();
+  const [alerts, setAlerts] = useState<AlertRecord[]>([]);
+  const [auditsByAlertId, setAuditsByAlertId] = useState<Record<number, AuditRecord[]>>({});
   const [count, setCount] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [loading, setLoading] = useState(false);
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+  const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [auditSuccess, setAuditSuccess] = useState<string | null>(null);
+  const [auditTarget, setAuditTarget] = useState<AlertRecord | null>(null);
+  const [auditForm, setAuditForm] = useState({
+    title: "",
+    notes: "",
+  });
+
+  const unwrapResults = <T,>(payload: T[] | { results?: T[] } | null | undefined): T[] => {
+    if (Array.isArray(payload)) return payload;
+    if (payload && Array.isArray(payload.results)) return payload.results;
+    return [];
+  };
 
   useEffect(() => {
-    setLoading(true);
-    fetch(`${API_BASE_URL}/api/alerts/?page=${page}&page_size=${pageSize}`, { credentials: "include" })
-      .then(res => res.json())
-      .then(data => {
-        setAlerts(Array.isArray(data) ? data : data.results || []);
-        setCount(data.count || (Array.isArray(data) ? data.length : 0));
-      })
-      .catch(() => {
-        setAlerts([]);
-        setCount(0);
-      })
-      .finally(() => setLoading(false));
+    let cancelled = false;
+
+    async function loadAlertsAndAudits() {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const alertsPayload = await alertApi.list(page, pageSize);
+        const nextAlerts = Array.isArray(alertsPayload) ? alertsPayload : alertsPayload.results || [];
+        const nextCount = alertsPayload.count || (Array.isArray(alertsPayload) ? alertsPayload.length : 0);
+
+        if (cancelled) return;
+
+        setAlerts(nextAlerts);
+        setCount(nextCount);
+
+        const visibleAlertIds = nextAlerts.map((alert) => alert.id);
+        if (visibleAlertIds.length === 0) {
+          setAuditsByAlertId({});
+          return;
+        }
+
+        const auditsPayloadByAlert = await Promise.all(
+          visibleAlertIds.map((alertId) => auditApi.list({ page: 1, pageSize: 20, alertId }))
+        );
+        if (cancelled) return;
+
+        const linkedAudits = auditsPayloadByAlert.flatMap((payload) => unwrapResults<AuditRecord>(payload));
+
+        const nextAuditsByAlertId = linkedAudits.reduce<Record<number, AuditRecord[]>>((accumulator, audit) => {
+          if (!audit.alert) return accumulator;
+          const key = audit.alert;
+          accumulator[key] = accumulator[key] ? [...accumulator[key], audit] : [audit];
+          accumulator[key].sort((left, right) => right.id - left.id);
+          return accumulator;
+        }, {});
+
+        setAuditsByAlertId(nextAuditsByAlertId);
+      } catch (loadError) {
+        if (!cancelled) {
+          setAlerts([]);
+          setCount(0);
+          setAuditsByAlertId({});
+          setError(loadError instanceof Error ? loadError.message : "Impossible de charger les alertes.");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadAlertsAndAudits();
+
+    return () => {
+      cancelled = true;
+    };
   }, [page, pageSize]);
 
-  // Simule le changement de statut localement
-  const updateStatus = (id: number, status: string) => {
-    setAlerts((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, status } : a))
-    );
+  const updateStatus = async (id: number, status: AlertStatus) => {
+    setUpdatingId(id);
+    setError(null);
+
+    try {
+      const updatedAlert = await alertApi.update(id, { status });
+      setAlerts((prev) =>
+        prev.map((alert) => (alert.id === id ? updatedAlert : alert))
+      );
+    } catch (updateError) {
+      setError(updateError instanceof Error ? updateError.message : "Impossible de mettre à jour l'alerte.");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const openAuditModal = (alert: AlertRecord) => {
+    setError(null);
+    setAuditSuccess(null);
+    setAuditTarget(alert);
+    setAuditForm({
+      title: `Audit - ${alert.camera_name || `Caméra ${alert.camera}`}`,
+      notes: `Ouverture suite à l'alerte #${alert.id}${alert.epi_missing.length > 0 ? ` - EPI manquants: ${alert.epi_missing.join(", ")}` : ""}`,
+    });
+  };
+
+  const closeAuditModal = () => {
+    if (auditLoading) return;
+    setAuditTarget(null);
+    setAuditForm({ title: "", notes: "" });
+  };
+
+  const createAudit = async () => {
+    if (!auditTarget) return;
+
+    setAuditLoading(true);
+    setError(null);
+    setAuditSuccess(null);
+
+    try {
+      const createdAudit = await auditApi.create({
+        title: auditForm.title,
+        camera: typeof auditTarget.camera === "number" ? auditTarget.camera : Number(auditTarget.camera),
+        alert: auditTarget.id,
+        notes: auditForm.notes,
+      });
+
+      setAuditsByAlertId((prev) => ({
+        ...prev,
+        [auditTarget.id]: [createdAudit as AuditRecord, ...(prev[auditTarget.id] || [])],
+      }));
+
+      if (auditTarget.status === "nouveau") {
+        try {
+          const updatedAlert = await alertApi.update(auditTarget.id, { status: "en_cours" });
+          setAlerts((prev) => prev.map((alert) => (alert.id === auditTarget.id ? updatedAlert : alert)));
+        } catch {
+          setAuditSuccess("Audit créé, mais le statut de l'alerte doit être ajusté manuellement.");
+        }
+      }
+
+      closeAuditModal();
+      navigate(`/audits/${(createdAudit as AuditRecord).id}`);
+    } catch (createError) {
+      setError(createError instanceof Error ? createError.message : "Impossible de créer l'audit.");
+    } finally {
+      setAuditLoading(false);
+    }
   };
 
   const totalPages = Math.ceil(count / pageSize);
@@ -78,6 +196,16 @@ export default function Alerts() {
         </label>
         {loading && <span className="ml-4 text-xs text-muted-foreground">Chargement...</span>}
       </div>
+      {error && (
+        <div className="mb-4 rounded border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+      {auditSuccess && (
+        <div className="mb-4 rounded border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          {auditSuccess}
+        </div>
+      )}
       <div className="overflow-x-auto rounded-lg border border-border bg-card shadow">
         <table className="min-w-full text-sm">
           <thead className="bg-muted text-muted-foreground">
@@ -132,29 +260,68 @@ export default function Alerts() {
                       ? "bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-semibold"
                       : alert.status === "en_cours"
                       ? "bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-xs font-semibold"
+                      : alert.status === "ignore"
+                      ? "bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-xs font-semibold"
                       : "bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-semibold"
                   }>
-                    {STATUS_LABELS[alert.status]}
+                    {STATUS_LABELS[alert.status] || alert.status}
                   </span>
                 </td>
                 <td className="px-4 py-2">
-                  {["nouveau", "en_cours", "résolu"].map((s) =>
+                  {auditsByAlertId[alert.id]?.[0] && (
+                    <div className="mb-2 rounded border border-border bg-muted/40 px-2 py-2 text-xs">
+                      <div className="font-semibold">Audit lié</div>
+                      <div className="mt-1 flex items-center justify-between gap-2">
+                        <span>#{auditsByAlertId[alert.id][0].id}</span>
+                        <span className="rounded bg-background px-2 py-0.5 font-medium">
+                          {auditsByAlertId[alert.id][0].status === "clos"
+                            ? "Clos"
+                            : auditsByAlertId[alert.id][0].status === "en_cours"
+                              ? "En cours"
+                              : "Ouvert"}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {auditsByAlertId[alert.id]?.[0] ? (
+                    <button
+                      className="mb-2 mr-2 rounded border border-primary px-2 py-1 text-xs font-semibold text-primary hover:bg-primary/10"
+                      onClick={() => navigate(`/audits/${auditsByAlertId[alert.id][0].id}`)}
+                      disabled={updatingId === alert.id || auditLoading}
+                    >
+                      Voir audit
+                    </button>
+                  ) : null}
+
+                  <button
+                    className="mb-2 mr-2 rounded bg-slate-700 px-2 py-1 text-xs font-semibold text-white hover:bg-slate-800"
+                    onClick={() => openAuditModal(alert)}
+                    disabled={updatingId === alert.id || auditLoading || Boolean(auditsByAlertId[alert.id]?.some((audit) => audit.status !== "clos"))}
+                  >
+                    {auditsByAlertId[alert.id]?.length ? "Nouvel audit" : "Ouvrir audit"}
+                  </button>
+                  {STATUS_ORDER.map((s) =>
                     s !== alert.status ? (
                       <button
                         key={s}
                         className={
-                          "px-2 py-1 rounded text-xs font-mono font-semibold mr-1 " +
-                          (s === "résolu"
+                          "px-2 py-1 rounded text-xs font-mono font-semibold mr-1 disabled:cursor-not-allowed disabled:opacity-50 " +
+                          (s === "resolu"
                             ? "bg-green-500 text-white hover:bg-green-600"
                             : s === "en_cours"
                             ? "bg-orange-500 text-white hover:bg-orange-600"
                             : "bg-blue-500 text-white hover:bg-blue-600")
                         }
                         onClick={() => updateStatus(alert.id, s)}
+                        disabled={updatingId === alert.id}
                       >
                         {STATUS_LABELS[s]}
                       </button>
                     ) : null
+                  )}
+                  {updatingId === alert.id && (
+                    <span className="text-xs text-muted-foreground">Mise a jour...</span>
                   )}
                 </td>
               </tr>
@@ -162,6 +329,67 @@ export default function Alerts() {
           </tbody>
         </table>
       </div>
+
+      {auditTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
+          <div className="w-full max-w-lg rounded-lg border border-border bg-background p-6 shadow-lg">
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-semibold">Ouvrir un audit</h3>
+                <p className="text-sm text-muted-foreground">
+                  Alerte #{auditTarget.id} - {auditTarget.camera_name || auditTarget.camera}
+                </p>
+              </div>
+              <button
+                className="text-sm text-muted-foreground hover:text-foreground"
+                onClick={closeAuditModal}
+                disabled={auditLoading}
+              >
+                Fermer
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium">Titre</label>
+                <input
+                  className="w-full rounded border border-border bg-background px-3 py-2 text-sm"
+                  value={auditForm.title}
+                  onChange={(e) => setAuditForm((prev) => ({ ...prev, title: e.target.value }))}
+                  placeholder="Titre de l'audit"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium">Notes</label>
+                <textarea
+                  className="min-h-28 w-full rounded border border-border bg-background px-3 py-2 text-sm"
+                  value={auditForm.notes}
+                  onChange={(e) => setAuditForm((prev) => ({ ...prev, notes: e.target.value }))}
+                  placeholder="Contexte de l'ouverture de l'audit"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <button
+                  className="rounded border border-border px-4 py-2 text-sm hover:bg-muted"
+                  onClick={closeAuditModal}
+                  disabled={auditLoading}
+                >
+                  Annuler
+                </button>
+                <button
+                  className="rounded bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={createAudit}
+                  disabled={auditLoading || !auditForm.title.trim()}
+                >
+                  {auditLoading ? "Création..." : "Créer l'audit"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

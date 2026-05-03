@@ -67,9 +67,18 @@ class AlertUpdateView(generics.UpdateAPIView):
 
     def perform_update(self, serializer):
         data = {}
+        instance = self.get_object()
+
+        status_value = serializer.validated_data.get('status')
+        assigned_to = serializer.validated_data.get('assigned_to')
+
+        if not instance.first_acknowledged_at and (
+            status_value in {'en_cours', 'resolu'} or assigned_to is not None
+        ):
+            data['first_acknowledged_at'] = timezone.now()
 
         # Si on passe en résolu → enregistrer qui a résolu et quand
-        if serializer.validated_data.get('status') == 'resolu':
+        if status_value == 'resolu':
             data['resolved_by'] = self.request.user
             data['resolved_at'] = timezone.now()
 
@@ -104,6 +113,13 @@ class AlertBulkUpdateView(APIView):
 
         alerts = Alert.objects.filter(id__in=ids)
         update_data = {'status': new_status}
+
+        alerts = Alert.objects.filter(id__in=ids)
+
+        if new_status in {'en_cours', 'resolu'}:
+            alerts.filter(first_acknowledged_at__isnull=True).update(
+                first_acknowledged_at=timezone.now()
+            )
 
         if new_status == 'resolu':
             update_data['resolved_by'] = request.user

@@ -43,6 +43,10 @@ class AuditListCreateView(generics.ListCreateAPIView):
         if camera_id:
             qs = qs.filter(camera__id=camera_id)
 
+        alert_id = self.request.query_params.get('alert_id')
+        if alert_id:
+            qs = qs.filter(alert__id=alert_id)
+
         return qs
 
     def perform_create(self, serializer):

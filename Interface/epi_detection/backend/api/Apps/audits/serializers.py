@@ -52,6 +52,22 @@ class AuditCreateSerializer(serializers.ModelSerializer):
         model  = Audit
         fields = ['title', 'camera', 'alert', 'notes']
 
+    def validate(self, attrs):
+        alert = attrs.get('alert')
+        if not alert:
+            return attrs
+
+        has_active_audit = Audit.objects.filter(
+            alert=alert,
+            status__in=['ouvert', 'en_cours']
+        ).exists()
+        if has_active_audit:
+            raise serializers.ValidationError(
+                "Cette alerte a deja un audit actif. Cloturez l'audit en cours avant d'en ouvrir un nouveau."
+            )
+
+        return attrs
+
 
 class AuditUpdateSerializer(serializers.ModelSerializer):
     class Meta:

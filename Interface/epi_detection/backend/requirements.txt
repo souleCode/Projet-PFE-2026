@@ -6,3 +6,7 @@ ultralytics
 Pillow
 reportlab
 python-decouple
+django-jazzmin
+django_extensions
+psycopg2
+psycopg2-binary

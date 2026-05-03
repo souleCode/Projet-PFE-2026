@@ -109,7 +109,7 @@ const Cameras = () => {
         <div className="flex flex-col gap-4 min-h-0">
           {/* Live feed */}
           <div className="flex-1 min-h-[400px]">
-            <WebcamFeed isAlerted={isAlerted} cameraId={selectedCamera?.pk ? String(selectedCamera.pk) : ""} watchedEpis={selectedEpis} onDetection={handleDetection} />
+            <WebcamFeed isAlerted={isAlerted} cameraId={selectedCamera ? String(selectedCamera.id) : ""} watchedEpis={selectedEpis} onDetection={handleDetection} />
           </div>
 
           {/* Camera grid */}

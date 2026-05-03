@@ -9,6 +9,7 @@ import Cameras from "@/pages/Cameras";
 import Alerts from "@/pages/Alerts";
 import HSERules from "@/pages/HSERules";
 import Reporting from "@/pages/Reporting";
+import AuditDetail from "@/pages/AuditDetail";
 import Admin from "@/pages/Admin";
 import NotFound from "./pages/NotFound";
 import LoginPage from "./pages/userss/login";
@@ -40,6 +41,7 @@ const App = () => (
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/cameras" element={<Cameras />} />
                 <Route path="/alerts" element={<Alerts />} />
+                <Route path="/audits/:auditId" element={<AuditDetail />} />
                 <Route path="/hse-rules" element={<HSERules />} />
                 <Route path="/reporting" element={<Reporting />} />
                 <Route path="/admin" element={<Admin />} />

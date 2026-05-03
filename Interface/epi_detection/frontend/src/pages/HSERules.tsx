@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Shield, Plus, Pencil, Trash2, ToggleLeft, ToggleRight, Clock, MapPin, AlertTriangle } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 interface HSERule {
   id: number;
@@ -21,7 +22,8 @@ const epiTypeLabel: Record<string, string> = {
 };
 
 const HSERules = () => {
-
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
 
   const [rules, setRules] = useState<HSERule[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -68,15 +70,17 @@ const HSERules = () => {
             Configuration des règles de sécurité — {activeCount}/{rules.length} actives
           </p>
         </div>
-        <button
-          className="flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-opacity"
-          onClick={() => { setShowForm(true); setEditId(null); setForm({ name: "", description: "", epi_criticites: [{ epi: "hardhat", criticite: "Moyenne" }], is_active: true, zone: "", delay: 3, cameras: [] }); setError(null); }}
-        >
-          <Plus size={16} />
-          Nouvelle règle
-        </button>
+        {isAdmin && (
+          <button
+            className="flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-opacity"
+            onClick={() => { setShowForm(true); setEditId(null); setForm({ name: "", description: "", epi_criticites: [{ epi: "hardhat", criticite: "Moyenne" }], is_active: true, zone: "", delay: 3, cameras: [] }); setError(null); }}
+          >
+            <Plus size={16} />
+            Nouvelle règle
+          </button>
+        )}
             {/* Modal Formulaire d'ajout */}
-            {showForm && (
+            {isAdmin && showForm && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
                 <div className="bg-white dark:bg-background rounded-lg shadow-lg p-6 w-full max-w-md relative">
                   <button
@@ -307,45 +311,47 @@ const HSERules = () => {
               </div>
 
               {/* Actions */}
-              <div className="flex gap-1 shrink-0">
-                <button
-                  className="p-2 rounded-md hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
-                  onClick={() => {
-                    setShowForm(true);
-                    setEditId(rule.id);
-                    setForm({
-                      name: rule.name,
-                      description: rule.description,
-                      epi_criticites: Array.isArray((rule as any).epi_criticites) ? (rule as any).epi_criticites : [],
-                      is_active: rule.is_active,
-                      zone: rule.zone || "",
-                      delay: rule.delay || 3,
-                      cameras: Array.isArray((rule as any).cameras) ? (rule as any).cameras : [],
-                    });
-                    setError(null);
-                  }}
-                >
-                  <Pencil size={14} />
-                </button>
-                <button
-                  className="p-2 rounded-md hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive"
-                  onClick={async () => {
-                    if (!window.confirm("Supprimer cette règle ?")) return;
-                    setLoading(true);
-                    try {
-                      await fetch(`${API_BASE_URL}/api/rules/hse-rules/${rule.id}/`, {
-                        method: "DELETE",
-                        credentials: "include",
+              {isAdmin && (
+                <div className="flex gap-1 shrink-0">
+                  <button
+                    className="p-2 rounded-md hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
+                    onClick={() => {
+                      setShowForm(true);
+                      setEditId(rule.id);
+                      setForm({
+                        name: rule.name,
+                        description: rule.description,
+                        epi_criticites: Array.isArray((rule as any).epi_criticites) ? (rule as any).epi_criticites : [],
+                        is_active: rule.is_active,
+                        zone: rule.zone || "",
+                        delay: rule.delay || 3,
+                        cameras: Array.isArray((rule as any).cameras) ? (rule as any).cameras : [],
                       });
-                      fetchRules();
-                    } finally {
-                      setLoading(false);
-                    }
-                  }}
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
+                      setError(null);
+                    }}
+                  >
+                    <Pencil size={14} />
+                  </button>
+                  <button
+                    className="p-2 rounded-md hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive"
+                    onClick={async () => {
+                      if (!window.confirm("Supprimer cette règle ?")) return;
+                      setLoading(true);
+                      try {
+                        await fetch(`${API_BASE_URL}/api/rules/hse-rules/${rule.id}/`, {
+                          method: "DELETE",
+                          credentials: "include",
+                        });
+                        fetchRules();
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         ))}

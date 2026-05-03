@@ -16,7 +16,7 @@ class AlertSerializer(serializers.ModelSerializer):
             'id', 'camera', 'camera_name', 'camera_location',
             'timestamp', 'epi_missing', 'epi_missing_display',
             'criticity', 'status', 'image', 'image_url',
-            'detection_log', 'assigned_to', 'assigned_to_name',
+            'detection_log', 'assigned_to', 'assigned_to_name', 'first_acknowledged_at',
             'resolved_by', 'resolved_by_name', 'resolved_at', 'notes',
         ]
         read_only_fields = ['id', 'timestamp', 'detection_log']
