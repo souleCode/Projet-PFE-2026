@@ -47,7 +47,7 @@ const HSERules = () => {
   const [editId, setEditId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://pfe-api.digiscia.me";
 
   const fetchRules = () => {
     fetch(`${API_BASE_URL}/api/rules/hse-rules/`, { credentials: "include" })

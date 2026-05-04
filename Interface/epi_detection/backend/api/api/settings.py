@@ -131,21 +131,24 @@ JWT_AUTH_COOKIE_HTTPONLY = True            # Pas accessible en JS
 JWT_AUTH_COOKIE_SAMESITE = 'Lax'          # 'Strict' en prod
 
 # =====================CORS ==============================
-CORS_ALLOW_CREDENTIALS = True   # Obligatoire pour envoyer les cookies
-CORS_ALLOWED_ORIGINS = [
+CORS_DEFAULT_ORIGINS = [
     "http://localhost:5173",
     "http://localhost:8080",
     "http://localhost:8081",
     "http://localhost:3000",
+    "https://epi-preprod.digiscia.me",
+    "https://pfe-api.digiscia.me",
 ]
+EXTRA_CORS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in config('EXTRA_CORS_ALLOWED_ORIGINS', default='').split(',')
+    if origin.strip()
+]
+CORS_ALLOW_CREDENTIALS = True   # Obligatoire pour envoyer les cookies
+CORS_ALLOWED_ORIGINS = list(dict.fromkeys(CORS_DEFAULT_ORIGINS + EXTRA_CORS_ALLOWED_ORIGINS))
 
 # ======================= CSRF =======================
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:5173",
-    "http://localhost:8080",
-    "http://localhost:8081",
-    "http://localhost:3000",
-]
+CSRF_TRUSTED_ORIGINS = list(dict.fromkeys(CORS_DEFAULT_ORIGINS + EXTRA_CORS_ALLOWED_ORIGINS))
 CSRF_COOKIE_NAME     = 'csrftoken'
 CSRF_COOKIE_HTTPONLY = False   # Le frontend doit pouvoir lire le csrftoken
 

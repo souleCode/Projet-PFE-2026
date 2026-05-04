@@ -1,3 +1,8 @@
+const API_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.VITE_API_URL ||
+  'https://pfe-api.digiscia.me';
+
 // Service pour appeler l'API de détection EPI
 export async function detectEPI(imageBlob: Blob, cameraId?: string, watchedEpis?: string[]) {
   const formData = new FormData();
@@ -9,7 +14,7 @@ export async function detectEPI(imageBlob: Blob, cameraId?: string, watchedEpis?
     formData.append('watched_epis', JSON.stringify(watchedEpis));
   }
 
-  const response = await fetch('http://localhost:8000/api/detection/detect/', {
+  const response = await fetch(`${API_URL}/api/detection/detect/`, {
     method: 'POST',
     body: formData,
     credentials: 'include',

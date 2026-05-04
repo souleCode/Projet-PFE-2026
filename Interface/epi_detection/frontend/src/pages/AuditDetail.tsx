@@ -34,7 +34,7 @@ export default function AuditDetail() {
   const apiBaseUrl =
     import.meta.env.VITE_API_BASE_URL ||
     import.meta.env.VITE_API_URL ||
-    "http://localhost:8000";
+    "https://pfe-api.digiscia.me";
 
   const [audit, setAudit] = useState<AuditRecord | null>(null);
   const [title, setTitle] = useState("");

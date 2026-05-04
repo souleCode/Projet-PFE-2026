@@ -1,7 +1,7 @@
 const API_URL =
   import.meta.env.VITE_API_BASE_URL ||
   import.meta.env.VITE_API_URL ||
-  "http://localhost:8000";
+  "https://pfe-api.digiscia.me";
 
 export async function apiFetch(path: string, options: RequestInit = {}) {
   const isFormDataBody = typeof FormData !== "undefined" && options.body instanceof FormData;

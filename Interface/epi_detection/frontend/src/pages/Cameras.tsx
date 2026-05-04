@@ -38,7 +38,7 @@ type CameraType = {
 };
 
 const Cameras = () => {
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://pfe-api.digiscia.me";
 
   // mockCameras comme fallback initial, remplacé si le backend répond
   const [cameras, setCameras] = useState<CameraType[]>(mockCameras);
