@@ -14,14 +14,13 @@ const SiteFooter = () => {
             </p>
             <p className="text-sm font-medium text-white">ALEXSYS Solutions</p>
             <p className="text-xs leading-relaxed text-white/70">
-              Société spécialisée dans le développement de solutions logicielles
-              sur mesure, l'intégration de systèmes et la transformation digitale.
+10, Allée des Mûriers, Ain Sebâa, Casablanca
             </p>
             <a
-              href="mailto:contact@alexsys-solutions.com"
+              href="mailto:contact@alexsys.ma"
               className="block text-xs text-[hsl(32_95%_62%)] hover:underline"
             >
-              contact@alexsys-solutions.com
+              contact@alexsys.ma
             </a>
           </div>
 
