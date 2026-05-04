@@ -6,7 +6,7 @@ from uuid import uuid4
 
 from django.conf import settings
 from django.core.files.base import ContentFile
-from django.db import OperationalError, close_old_connections, transaction
+from django.db import OperationalError, transaction
 from django.utils import timezone
 
 from .models import DetectionLog, GeminiContextAnalysis, NonComplianceState
@@ -114,7 +114,6 @@ def _run_db_write_with_retry(operation):
         if delay:
             time.sleep(delay)
 
-        close_old_connections()
         try:
             return operation()
         except OperationalError as exc:
