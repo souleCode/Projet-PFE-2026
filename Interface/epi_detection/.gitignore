@@ -15,3 +15,6 @@ backend/api/models/
 # Environment files
 .env
 **/.env
+
+# Private keys
+backend/pfe-space.pem

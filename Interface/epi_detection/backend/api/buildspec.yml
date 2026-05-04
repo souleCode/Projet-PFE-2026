@@ -1,0 +1,40 @@
+version: 0.2
+
+env:
+  variables:
+    DJANGO_SETTINGS_MODULE: api.settings
+    SECRET_KEY: buildspec-secret-key
+    DEBUG: "False"
+    USE_POSTGRES: "False"
+    ALLOWED_HOSTS: "*"
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.11
+    commands:
+      - echo Installing backend dependencies
+      - cd backend/api
+      - python -m pip install --upgrade pip
+      - pip install -r ../requirements.txt
+  build:
+    commands:
+      - echo Running Django validation
+      - python manage.py check
+      - python manage.py makemigrations --check --dry-run
+  post_build:
+    commands:
+      - echo Build completed on `date`
+
+artifacts:
+  base-directory: backend/api
+  files:
+    - appspec.yml
+    - manage.py
+    - buildspec.yml
+    - api/**/*
+    - Apps/**/*
+    - gunicorn/**/*
+    - nginx/**/*
+    - scripts/**/*
+    - models/**/*
