@@ -128,7 +128,10 @@ JWT_AUTH_COOKIE         = 'access_token'   # cookie access
 JWT_AUTH_REFRESH_COOKIE = 'refresh_token'  # cookie refresh
 JWT_AUTH_COOKIE_SECURE  = not DEBUG        # True en prod (HTTPS)
 JWT_AUTH_COOKIE_HTTPONLY = True            # Pas accessible en JS
-JWT_AUTH_COOKIE_SAMESITE = 'Lax'          # 'Strict' en prod
+JWT_AUTH_COOKIE_SAMESITE = config(
+    'JWT_AUTH_COOKIE_SAMESITE',
+    default='Lax' if DEBUG else 'None',
+)
 
 # =====================CORS ==============================
 CORS_DEFAULT_ORIGINS = [
@@ -151,6 +154,16 @@ CORS_ALLOWED_ORIGINS = list(dict.fromkeys(CORS_DEFAULT_ORIGINS + EXTRA_CORS_ALLO
 CSRF_TRUSTED_ORIGINS = list(dict.fromkeys(CORS_DEFAULT_ORIGINS + EXTRA_CORS_ALLOWED_ORIGINS))
 CSRF_COOKIE_NAME     = 'csrftoken'
 CSRF_COOKIE_HTTPONLY = False   # Le frontend doit pouvoir lire le csrftoken
+CSRF_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SAMESITE = config(
+    'CSRF_COOKIE_SAMESITE',
+    default='Lax' if DEBUG else 'None',
+)
+SESSION_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_SAMESITE = config(
+    'SESSION_COOKIE_SAMESITE',
+    default='Lax' if DEBUG else 'None',
+)
 
 # ================== Media / Static ======================
 MEDIA_URL  = '/media/'
