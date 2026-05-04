@@ -1,11 +1,12 @@
 import json
 import re
+import time
 from pathlib import Path
 from uuid import uuid4
 
 from django.conf import settings
 from django.core.files.base import ContentFile
-from django.db import transaction
+from django.db import OperationalError, close_old_connections, transaction
 from django.utils import timezone
 
 from .models import DetectionLog, GeminiContextAnalysis, NonComplianceState
@@ -13,6 +14,7 @@ from .models import DetectionLog, GeminiContextAnalysis, NonComplianceState
 
 PERSON_TRACK_IOU_THRESHOLD = 0.5
 DEFAULT_GEMINI_RETRY_SECONDS = 60
+SQLITE_LOCK_RETRY_DELAYS = (0.1, 0.25, 0.5)
 
 
 class GeminiRateLimitError(RuntimeError):
@@ -101,6 +103,23 @@ def _get_analysis_image_field(analysis: GeminiContextAnalysis):
     if analysis.alert and analysis.alert.image:
         return analysis.alert.image
     return None
+
+
+def _is_sqlite_locked_error(exc: OperationalError) -> bool:
+    return 'database is locked' in str(exc).lower()
+
+
+def _run_db_write_with_retry(operation):
+    for attempt, delay in enumerate((0.0, *SQLITE_LOCK_RETRY_DELAYS)):
+        if delay:
+            time.sleep(delay)
+
+        close_old_connections()
+        try:
+            return operation()
+        except OperationalError as exc:
+            if not _is_sqlite_locked_error(exc) or attempt == len(SQLITE_LOCK_RETRY_DELAYS):
+                raise
 
 
 def _snapshot_image_if_needed(analysis: GeminiContextAnalysis, image_file) -> None:
@@ -395,25 +414,49 @@ def analyze_gemini_context(analysis: GeminiContextAnalysis) -> dict:
     }
 
 
-@transaction.atomic
+def _claim_next_pending_gemini_analysis():
+    now = timezone.now()
+    with transaction.atomic():
+        queue_queryset = GeminiContextAnalysis.objects.select_related('camera', 'alert', 'detection_log').filter(status='queued')
+        analysis = queue_queryset.filter(next_retry_at__isnull=True).first() or queue_queryset.filter(next_retry_at__lte=now).first()
+        if not analysis:
+            blocked_analysis = queue_queryset.filter(next_retry_at__gt=now).order_by('next_retry_at').first()
+            if blocked_analysis:
+                return blocked_analysis, 'retry_scheduled'
+            return None, 'empty_queue'
+
+        started_at = timezone.now()
+        updated = _run_db_write_with_retry(
+            lambda: GeminiContextAnalysis.objects.filter(pk=analysis.pk, status='queued').update(
+                status='processing',
+                started_at=started_at,
+                next_retry_at=None,
+                error_message='',
+                updated_at=started_at,
+            )
+        )
+        if not updated:
+            return None, 'busy'
+
+        analysis.status = 'processing'
+        analysis.started_at = started_at
+        analysis.next_retry_at = None
+        analysis.error_message = ''
+        return analysis, 'claimed'
+
+
 def process_next_pending_gemini_analysis():
     if get_daily_processed_count() >= settings.GEMINI_DAILY_LIMIT:
         return None, 'daily_limit_reached'
 
-    now = timezone.now()
-    queue_queryset = GeminiContextAnalysis.objects.select_related('camera', 'alert', 'detection_log').filter(status='queued')
-    analysis = queue_queryset.filter(next_retry_at__isnull=True).first() or queue_queryset.filter(next_retry_at__lte=now).first()
-    if not analysis:
-        blocked_analysis = queue_queryset.filter(next_retry_at__gt=now).order_by('next_retry_at').first()
-        if blocked_analysis:
-            return blocked_analysis, 'retry_scheduled'
-        return None, 'empty_queue'
+    analysis, outcome = None, 'busy'
+    for _ in range(3):
+        analysis, outcome = _claim_next_pending_gemini_analysis()
+        if outcome != 'busy':
+            break
 
-    analysis.status = 'processing'
-    analysis.started_at = timezone.now()
-    analysis.next_retry_at = None
-    analysis.error_message = ''
-    analysis.save(update_fields=['status', 'started_at', 'next_retry_at', 'error_message', 'updated_at'])
+    if outcome != 'claimed':
+        return analysis, outcome
 
     try:
         payload = analyze_gemini_context(analysis)
@@ -427,18 +470,22 @@ def process_next_pending_gemini_analysis():
         analysis.llm_confidence = payload['llm_confidence']
         analysis.processed_at = timezone.now()
         analysis.next_retry_at = None
-        analysis.save()
+        _run_db_write_with_retry(lambda: analysis.save())
         return analysis, 'processed'
     except GeminiRateLimitError as exc:
         analysis.status = 'queued'
         analysis.error_message = str(exc)
         analysis.next_retry_at = _build_retry_datetime(exc.retry_after_seconds)
-        analysis.save(update_fields=['status', 'error_message', 'next_retry_at', 'updated_at'])
+        _run_db_write_with_retry(
+            lambda: analysis.save(update_fields=['status', 'error_message', 'next_retry_at', 'updated_at'])
+        )
         return analysis, 'rate_limited'
     except Exception as exc:
         analysis.status = 'failed'
         analysis.error_message = str(exc)
         analysis.next_retry_at = None
         analysis.processed_at = timezone.now()
-        analysis.save(update_fields=['status', 'error_message', 'next_retry_at', 'processed_at', 'updated_at'])
+        _run_db_write_with_retry(
+            lambda: analysis.save(update_fields=['status', 'error_message', 'next_retry_at', 'processed_at', 'updated_at'])
+        )
         return analysis, 'failed'
