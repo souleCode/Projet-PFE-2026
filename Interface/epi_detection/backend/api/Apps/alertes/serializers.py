@@ -23,9 +23,17 @@ class AlertSerializer(serializers.ModelSerializer):
 
     def get_image_url(self, obj):
         request = self.context.get('request')
-        if obj.image and request:
-            return request.build_absolute_uri(obj.image.url)
-        return None
+        if not obj.image:
+            return None
+
+        image_url = obj.image.url
+        if image_url.startswith('http://') or image_url.startswith('https://'):
+            return image_url
+
+        if request:
+            return request.build_absolute_uri(image_url)
+
+        return image_url
 
 
 class AlertUpdateSerializer(serializers.ModelSerializer):

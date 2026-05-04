@@ -22,6 +22,7 @@ const WebcamFeed = ({ isAlerted, cameraId, watchedEpis, onDetection }: WebcamFee
   const fileInputRef = useRef<HTMLInputElement>(null);
   const latestCameraIdRef = useRef(cameraId);
   const latestWatchedEpisRef = useRef(watchedEpis);
+  const detectionInFlightRef = useRef(false);
   const [isActive, setIsActive] = useState(false);
   const [isVideoMode, setIsVideoMode] = useState(false);
   const [videoFileName, setVideoFileName] = useState<string | null>(null);
@@ -35,6 +36,9 @@ const WebcamFeed = ({ isAlerted, cameraId, watchedEpis, onDetection }: WebcamFee
   }, [cameraId, watchedEpis]);
 
   const runDetection = useCallback(async (blob: Blob) => {
+    if (detectionInFlightRef.current) return;
+
+    detectionInFlightRef.current = true;
     try {
       const result = await detectEPI(
         blob,
@@ -47,6 +51,8 @@ const WebcamFeed = ({ isAlerted, cameraId, watchedEpis, onDetection }: WebcamFee
       setDetections([]);
       if (typeof onDetection === "function") onDetection([]);
       console.error("Erreur détection EPI:", e);
+    } finally {
+      detectionInFlightRef.current = false;
     }
   }, [onDetection]);
 
@@ -95,6 +101,7 @@ const WebcamFeed = ({ isAlerted, cameraId, watchedEpis, onDetection }: WebcamFee
     setIsActive(false);
     setIsVideoMode(false);
     setVideoFileName(null);
+    detectionInFlightRef.current = false;
     if (detectionInterval.current) {
       clearInterval(detectionInterval.current);
       detectionInterval.current = null;
@@ -138,7 +145,7 @@ const WebcamFeed = ({ isAlerted, cameraId, watchedEpis, onDetection }: WebcamFee
               }
             }, "image/jpeg", 0.85);
           }
-        }, 500);
+        }, 1000);
       };
     }
   }, [runDetection, stopCamera]);

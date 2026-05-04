@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { authApi } from "@/lib/api";
+import SiteFooter from "@/components/SiteFooter";
 
 export default function RegisterPage() {
   const [email, setEmail] = useState("");
@@ -52,9 +53,10 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 to-background">
-      <div className="w-full max-w-md bg-card border border-border rounded-xl shadow-lg p-8 space-y-6">
-        <div className="flex items-center gap-3 mb-2">
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-primary/10 to-background">
+      <div className="flex flex-1 items-center justify-center px-4 py-8">
+        <div className="w-full max-w-md bg-card border border-border rounded-xl shadow-lg p-8 space-y-6">
+          <div className="flex items-center gap-3 mb-2">
           <div className="w-10 h-10 rounded-lg bg-primary/10 border border-primary/30 flex items-center justify-center">
             <ShieldCheck size={28} className="text-primary" />
           </div>
@@ -65,22 +67,22 @@ export default function RegisterPage() {
             <p className="text-xs text-muted-foreground font-mono">Surveillance des équipements de protection</p>
           </div>
         </div>
-        <div className="border-b border-border mb-2" />
-        <h2 className="text-lg font-semibold">Créer un compte</h2>
-        <p className="text-sm text-muted-foreground mb-4">Inscrivez-vous pour accéder à la plateforme</p>
-        {error && (
-          <Alert variant="destructive" className="mb-2">
-            <AlertTitle>Erreur</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-        {success && (
-          <Alert variant="default" className="mb-2">
-            <AlertTitle>Succès</AlertTitle>
-            <AlertDescription>{success}</AlertDescription>
-          </Alert>
-        )}
-        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="border-b border-border mb-2" />
+          <h2 className="text-lg font-semibold">Créer un compte</h2>
+          <p className="text-sm text-muted-foreground mb-4">Inscrivez-vous pour accéder à la plateforme</p>
+          {error && (
+            <Alert variant="destructive" className="mb-2">
+              <AlertTitle>Erreur</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          {success && (
+            <Alert variant="default" className="mb-2">
+              <AlertTitle>Succès</AlertTitle>
+              <AlertDescription>{success}</AlertDescription>
+            </Alert>
+          )}
+          <form onSubmit={handleSubmit} className="space-y-4">
              <div className="space-y-2">
             <Label htmlFor="lastName">Nom de Famille</Label>
             <Input
@@ -167,8 +169,10 @@ export default function RegisterPage() {
           <Button type="submit" className="w-full mt-2" disabled={loading}>
             {loading ? "Création..." : "Créer le compte"}
           </Button>
-        </form>
+          </form>
+        </div>
       </div>
+      <SiteFooter />
     </div>
   );
 }

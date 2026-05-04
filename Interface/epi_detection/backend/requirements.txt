@@ -10,3 +10,6 @@ django-jazzmin
 django_extensions
 psycopg2
 psycopg2-binary
+boto3
+django-storages
+google-generativeai

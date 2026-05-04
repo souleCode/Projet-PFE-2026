@@ -11,3 +11,7 @@ backend/api/models/
 *.njsproj
 *.sln
 *.sw?
+
+# Environment files
+.env
+**/.env

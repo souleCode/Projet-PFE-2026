@@ -11,6 +11,9 @@ import HSERules from "@/pages/HSERules";
 import Reporting from "@/pages/Reporting";
 import AuditDetail from "@/pages/AuditDetail";
 import Admin from "@/pages/Admin";
+import Docs from "@/pages/Docs";
+import ArchitectureTechnique from "@/pages/ArchitectureTechnique";
+import GeminiAnalyses from "@/pages/GeminiAnalyses";
 import NotFound from "./pages/NotFound";
 import LoginPage from "./pages/userss/login";
 import RegisterPage from "./pages/userss/register";
@@ -36,6 +39,8 @@ const App = () => (
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            <Route path="/docs" element={<Docs />} />
+            <Route path="/architecture-technique" element={<ArchitectureTechnique />} />
             <Route element={<ProtectedRoute />}>
               <Route element={<AppLayout />}>
                 <Route path="/" element={<Dashboard />} />
@@ -45,6 +50,7 @@ const App = () => (
                 <Route path="/hse-rules" element={<HSERules />} />
                 <Route path="/reporting" element={<Reporting />} />
                 <Route path="/admin" element={<Admin />} />
+                <Route path="/gemini-analyses" element={<GeminiAnalyses />} />
               </Route>
             </Route>
             <Route path="*" element={<NotFound />} />

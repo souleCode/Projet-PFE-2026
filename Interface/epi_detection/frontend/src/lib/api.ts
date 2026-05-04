@@ -50,6 +50,7 @@ export const authApi = {
 
 export type AlertStatus = "nouveau" | "en_cours" | "resolu" | "ignore";
 export type AuditStatus = "ouvert" | "en_cours" | "clos";
+export type GeminiAnalysisStatus = "queued" | "processing" | "completed" | "failed" | "quota_skipped";
 
 export interface AlertRecord {
   id: number;
@@ -89,6 +90,39 @@ export interface AuditRecord {
   captures_count?: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface GeminiContextAnalysisRecord {
+  id: number;
+  camera: number;
+  camera_name?: string;
+  alert?: number | null;
+  alert_id?: number | null;
+  detection_log?: number | null;
+  non_compliance_state?: number | null;
+  status: GeminiAnalysisStatus;
+  missing_epi: string[];
+  request_reason?: string;
+  image_url?: string | null;
+  severity?: string;
+  action?: string;
+  explanation?: string;
+  llm_confidence?: number | null;
+  result_json?: Record<string, unknown>;
+  error_message?: string;
+  requested_at: string;
+  started_at?: string | null;
+  next_retry_at?: string | null;
+  retry_in_seconds?: number | null;
+  processed_at?: string | null;
+}
+
+export interface GeminiProcessNextResponse {
+  detail: string;
+  daily_limit: number;
+  analysis?: GeminiContextAnalysisRecord;
+  next_retry_at?: string | null;
+  retry_in_seconds?: number | null;
 }
 
 export const alertApi = {
@@ -142,4 +176,21 @@ export const auditApi = {
       body,
     });
   },
+};
+
+export const geminiAnalysisApi = {
+  list: (params?: { status?: GeminiAnalysisStatus; cameraId?: number }) => {
+    const searchParams = new URLSearchParams();
+
+    if (params?.status) searchParams.set("status", params.status);
+    if (params?.cameraId) searchParams.set("camera_id", String(params.cameraId));
+
+    const query = searchParams.toString();
+    return apiFetch(`/api/detection/gemini-analyses/${query ? `?${query}` : ""}`);
+  },
+
+  processNext: () =>
+    apiFetch("/api/detection/gemini-analyses/process-next/", {
+      method: "POST",
+    }) as Promise<GeminiProcessNextResponse>,
 };

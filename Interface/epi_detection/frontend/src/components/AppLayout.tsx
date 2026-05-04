@@ -10,25 +10,36 @@ import {
   Shield,
   BarChart3,
   Settings,
+  BookOpen,
+  Blocks,
+  Bot,
   ChevronLeft,
   ChevronRight,
   ShieldAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const navItems = [
-  { to: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/cameras", icon: Camera, label: "Caméra en Direct" },
-  { to: "/alerts", icon: Bell, label: "Alertes" },
-  { to: "/hse-rules", icon: Shield, label: "Gestion des Règles HSE" },
-  { to: "/reporting", icon: BarChart3, label: "Reporting" },
-  { to: "/admin", icon: Settings, label: "Control Panel" },
-];
+import SiteFooter from "@/components/SiteFooter";
 
 const AppLayout = () => {
   const [collapsed, setCollapsed] = useState(false);
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const navigate = useNavigate();
+
+  const navItems = [
+    { to: "/", icon: LayoutDashboard, label: "Dashboard" },
+    { to: "/cameras", icon: Camera, label: "Caméra en Direct" },
+    { to: "/alerts", icon: Bell, label: "Alertes" },
+    { to: "/hse-rules", icon: Shield, label: "Gestion des Règles HSE" },
+    { to: "/reporting", icon: BarChart3, label: "Reporting" },
+    { to: "/docs", icon: BookOpen, label: "Docs" },
+    { to: "/architecture-technique", icon: Blocks, label: "Architecture" },
+    ...(user?.role === "admin"
+      ? [
+          { to: "/gemini-analyses", icon: Bot, label: "Gemini Vision" },
+          { to: "/admin", icon: Settings, label: "Control Panel" },
+        ]
+      : []),
+  ];
 
   const handleLogout = async () => {
     await logout();
@@ -102,7 +113,10 @@ const AppLayout = () => {
 
       {/* Main content */}
       <main className="flex-1 flex flex-col min-w-0 overflow-auto">
-        <Outlet />
+        <div className="flex-1">
+          <Outlet />
+        </div>
+        <SiteFooter />
       </main>
     </div>
   );

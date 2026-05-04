@@ -2,6 +2,7 @@ from PIL import Image
 import io
 from collections import Counter
 from datetime import timedelta
+from django.conf import settings
 from django.utils import timezone
 
 from django.utils import timezone
@@ -14,9 +15,11 @@ from rest_framework.parsers import MultiPartParser
 from Apps.Cameras.models import Camera
 from Apps.RegleSHE.models import HSERule
 from Apps.alertes.models import Alert
+from Apps.Users.permissions import IsAdmin
 from Apps.alertes.utils import create_alert_if_needed   # branché sur alerts
-from .models import DetectionLog
-from .serializers import DetectionLogSerializer
+from .gemini_service import extract_non_compliant_person_observations, process_next_pending_gemini_analysis, sync_non_compliance_states
+from .models import DetectionLog, GeminiContextAnalysis
+from .serializers import DetectionLogSerializer, GeminiContextAnalysisSerializer
 from .yolo_status import run_detection_with_status
 
 
@@ -71,7 +74,14 @@ class DetectView(APIView):
             processing_time = stats.get('processingTime', 0.0),
         )
 
+        if file:
+            file.seek(0)
+
         # Créer une alerte si EPI manquants attendus par la règle HSE de la caméra
+        alert = None
+        if camera:
+            person_observations = []
+
         if not is_compliant and camera:
             # Récupérer les EPI attendus pour cette caméra (via la règle HSE active)
             hse_rules = camera.hse_rules.filter(is_active=True)
@@ -83,13 +93,23 @@ class DetectView(APIView):
                     else:
                         epis_attendus.add(epi)
             missing_epi = [epi for epi in stats.get('missing_epi', []) if epi in epis_attendus]
+            person_observations = extract_non_compliant_person_observations(detections, list(epis_attendus))
             if missing_epi:
-                create_alert_if_needed(
+                alert = create_alert_if_needed(
                     camera      = camera,
                     missing_epi = missing_epi,
                     image_file  = file,
                     detection_log = log,
                 )
+            sync_non_compliance_states(
+                camera=camera,
+                detection_log=log,
+                person_observations=person_observations,
+                alert=alert,
+                image_file=file,
+            )
+
+        process_next_pending_gemini_analysis()
 
         return Response({
             'detections': detections,
@@ -318,3 +338,40 @@ class BusinessKPIsView(APIView):
             'compliance_by_hour': compliance_by_hour,
             'compliance_by_rule': compliance_by_rule,
         })
+
+
+class GeminiContextAnalysisListView(generics.ListAPIView):
+    serializer_class = GeminiContextAnalysisSerializer
+    permission_classes = [IsAdmin]
+
+    def get_queryset(self):
+        qs = GeminiContextAnalysis.objects.select_related('camera', 'alert', 'detection_log', 'non_compliance_state').all()
+
+        status_param = self.request.query_params.get('status')
+        if status_param:
+            qs = qs.filter(status=status_param)
+
+        camera_id = self.request.query_params.get('camera_id')
+        if camera_id:
+            qs = qs.filter(camera__id=camera_id)
+
+        return qs
+
+
+class GeminiContextAnalysisProcessNextView(APIView):
+    permission_classes = [IsAdmin]
+
+    def post(self, request):
+        analysis, outcome = process_next_pending_gemini_analysis()
+
+        payload = {
+            'detail': outcome,
+            'daily_limit': settings.GEMINI_DAILY_LIMIT,
+        }
+        if analysis:
+            serialized_analysis = GeminiContextAnalysisSerializer(analysis, context={'request': request}).data
+            payload['analysis'] = serialized_analysis
+            payload['next_retry_at'] = serialized_analysis.get('next_retry_at')
+            payload['retry_in_seconds'] = serialized_analysis.get('retry_in_seconds')
+
+        return Response(payload, status=status.HTTP_200_OK)

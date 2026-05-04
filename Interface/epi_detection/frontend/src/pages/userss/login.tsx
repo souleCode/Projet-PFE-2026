@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { ShieldCheck, Eye, EyeOff } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -100,6 +100,15 @@ export default function LoginPage() {
             {loading ? "Connexion..." : "Se connecter"}
           </Button>
         </form>
+
+        <div className="border-t border-border pt-4 text-center">
+          <p className="text-xs text-muted-foreground">
+            La documentation de la plateforme est accessible a tous. {" "}
+            <Link to="/docs" className="font-semibold text-primary hover:underline">
+              Consulter la documentation
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );

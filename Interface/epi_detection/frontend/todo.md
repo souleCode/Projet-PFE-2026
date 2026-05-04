@@ -41,3 +41,5 @@
         Exporter les incidents
 
         Fournir des statistiques périodiques
+
+ajouter un vrai worker planifié pour vider la queue automatiquement sans dépendre des requêtes ou du bouton admin
