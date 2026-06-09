@@ -170,18 +170,32 @@ const WebcamFeed = ({ isAlerted, cameraId, watchedEpis, onDetection }: WebcamFee
     if (!isActive || detections.length === 0) return;
 
     canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;    
+    canvas.height = video.videoHeight;
     detections.forEach(det => {
+      if (!det.bbox) return;
       const [x1, y1, x2, y2] = det.bbox;
-      // console.log("Drawing bbox:", det.class, det.bbox);
+      const w = x2 - x1;
+      const h = y2 - y1;
 
+      // Rectangle de détection
       ctx.strokeStyle = det.color;
-      ctx.lineWidth = 3; // Augmente l'épaisseur du rectangle
-      ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x1, y1, w, h);
 
-      ctx.font = "10px monospace"; // Texte plus grand pour la classe
+      // Label : classe + confiance
+      const conf = det.confidence != null ? ` ${(det.confidence * 100).toFixed(0)}%` : '';
+      const label = `${det.class}${conf}`;
+      ctx.font = 'bold 12px monospace';
+      const textW = ctx.measureText(label).width;
+      const labelY = y1 > 18 ? y1 - 4 : y1 + 16;
+
+      // Fond du label
       ctx.fillStyle = det.color;
-      ctx.fillText(`${det.class} ${(det.confidence*100).toFixed(0)}%`, x1 + 4, y1 + 36);
+      ctx.fillRect(x1, labelY - 13, textW + 6, 16);
+
+      // Texte du label
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(label, x1 + 3, labelY);
     });
   }, [detections, isActive]);
 
