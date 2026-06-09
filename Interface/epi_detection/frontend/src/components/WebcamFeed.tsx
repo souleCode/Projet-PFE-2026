@@ -191,8 +191,8 @@ const WebcamFeed = ({ isAlerted, cameraId, watchedEpis, onDetection }: WebcamFee
     const vw = video.videoWidth  || cw;
     const vh = video.videoHeight || ch;
 
-    // Reproduit le comportement object-contain : scale uniforme + centrage
-    const scale = Math.min(cw / vw, ch / vh);
+    // Reproduit object-cover : scale max pour remplir le conteneur (bords clippés)
+    const scale = Math.max(cw / vw, ch / vh);
     const ox = (cw - vw * scale) / 2;
     const oy = (ch - vh * scale) / 2;
 
@@ -274,7 +274,7 @@ const WebcamFeed = ({ isAlerted, cameraId, watchedEpis, onDetection }: WebcamFee
             muted={!isVideoMode}
             controls={isVideoMode}
             loop={isVideoMode}
-            className={`w-full h-full object-contain bg-muted ${isActive ? "block" : "hidden"}`}
+            className={`w-full h-full object-cover bg-muted ${isActive ? "block" : "hidden"}`}
           />
           <canvas
             ref={canvasRef}
