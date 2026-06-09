@@ -157,60 +157,67 @@ const WebcamFeed = ({ isAlerted, cameraId, watchedEpis, onDetection }: WebcamFee
     }
   }, [runDetection, stopCamera]);
 
-  // Sync canvas dimensions once when video resolution is known — never resize during detection
-  useEffect(() => {
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    if (!video || !canvas) return;
-
-    const syncSize = () => {
-      if (video.videoWidth > 0 && video.videoHeight > 0) {
-        canvas.width  = video.videoWidth;
-        canvas.height = video.videoHeight;
-      }
-    };
-
-    video.addEventListener('loadedmetadata', syncSize);
-    video.addEventListener('resize', syncSize);
-    syncSize();
-    return () => {
-      video.removeEventListener('loadedmetadata', syncSize);
-      video.removeEventListener('resize', syncSize);
-    };
-  }, []);
-
-  // Draw detection boxes — never touch canvas dimensions here
+  // Keep canvas resolution = container CSS size (avoids non-uniform stretching)
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    const syncSize = () => {
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+      if (w > 0 && h > 0 && (canvas.width !== w || canvas.height !== h)) {
+        canvas.width  = w;
+        canvas.height = h;
+      }
+    };
+    const ro = new ResizeObserver(syncSize);
+    ro.observe(canvas);
+    syncSize();
+    return () => ro.disconnect();
+  }, []);
+
+  // Draw detection boxes with object-contain coordinate transform
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const video  = videoRef.current;
+    if (!canvas || !video) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (!isActive || detections.length === 0) return;
 
+    const cw = canvas.width;
+    const ch = canvas.height;
+    const vw = video.videoWidth  || cw;
+    const vh = video.videoHeight || ch;
+
+    // Reproduit le comportement object-contain : scale uniforme + centrage
+    const scale = Math.min(cw / vw, ch / vh);
+    const ox = (cw - vw * scale) / 2;
+    const oy = (ch - vh * scale) / 2;
+
     detections.forEach(det => {
       if (!det.bbox) return;
       const [x1, y1, x2, y2] = det.bbox;
-      const w = x2 - x1;
-      const h = y2 - y1;
+      const sx = x1 * scale + ox;
+      const sy = y1 * scale + oy;
+      const sw = (x2 - x1) * scale;
+      const sh = (y2 - y1) * scale;
 
-      // Rectangle épais
       ctx.strokeStyle = det.color;
       ctx.lineWidth = 3;
-      ctx.strokeRect(x1, y1, w, h);
+      ctx.strokeRect(sx, sy, sw, sh);
 
-      // Label classe + confiance
-      const conf = det.confidence != null ? ` ${(det.confidence * 100).toFixed(0)}%` : '';
+      const conf  = det.confidence != null ? ` ${(det.confidence * 100).toFixed(0)}%` : '';
       const label = `${det.class}${conf}`;
       ctx.font = 'bold 13px monospace';
-      const textW = ctx.measureText(label).width;
-      const labelY = y1 > 20 ? y1 - 5 : y1 + 18;
+      const textW  = ctx.measureText(label).width;
+      const labelY = sy > 20 ? sy - 5 : sy + 18;
 
       ctx.fillStyle = det.color;
-      ctx.fillRect(x1, labelY - 14, textW + 8, 18);
+      ctx.fillRect(sx, labelY - 14, textW + 8, 18);
       ctx.fillStyle = '#ffffff';
-      ctx.fillText(label, x1 + 4, labelY);
+      ctx.fillText(label, sx + 4, labelY);
     });
   }, [detections, isActive]);
 
