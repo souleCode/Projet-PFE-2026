@@ -33,12 +33,14 @@ def get_model() -> YOLO:
             if _model is None:
                 onnx_path = settings.YOLO_ONNX_PATH
                 pt_path   = settings.YOLO_MODEL_PATH
-                if onnx_path.exists():
-                    model_path = onnx_path
-                    print(f"[YOLO] ONNX trouvé — chargement depuis {model_path}")
-                else:
+                if pt_path.exists():
                     model_path = pt_path
-                    print(f"[YOLO] ONNX absent — fallback sur {model_path}")
+                    print(f"[YOLO] Chargement modèle PyTorch {model_path}")
+                elif onnx_path.exists():
+                    model_path = onnx_path
+                    print(f"[YOLO] PyTorch absent — fallback ONNX {model_path}")
+                else:
+                    raise FileNotFoundError(f"Aucun modèle trouvé ({pt_path})")
                 _model = YOLO(str(model_path), task='detect')
                 print(f"[YOLO] Modèle chargé. Classes : {_model.names}")
                 # Warm-up : compile le graph ONNX/PyTorch pour que la première

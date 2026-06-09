@@ -165,12 +165,14 @@ const WebcamFeed = ({ isAlerted, cameraId, watchedEpis, onDetection }: WebcamFee
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    if (video.videoWidth > 0 && video.videoHeight > 0) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+    }
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
+
     if (!isActive || detections.length === 0) return;
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
     detections.forEach(det => {
       if (!det.bbox) return;
       const [x1, y1, x2, y2] = det.bbox;
