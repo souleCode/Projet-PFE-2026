@@ -114,6 +114,7 @@ class DetectView(APIView):
         return Response({
             'detections': detections,
             'stats':      stats,
+            'workers':    stats.get('workers', []),
             'log_id':     log.id,
         }, status=status.HTTP_200_OK)
 

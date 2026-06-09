@@ -97,6 +97,7 @@ def run_detection_with_status(image):
 
     #=================== Associer chaque EPI à une personne (ou pas) ============================
     detections = []
+    workers    = []  # liste structurée par travailleur pour le frontend
     worn_epis  = {epi: [] for epi in EPI_CLASSES}  # EPI portés par personne
     free_epis  = {epi: [] for epi in EPI_CLASSES}  # EPI présents mais non portés
 
@@ -185,7 +186,29 @@ def run_detection_with_status(image):
                     "status": "missing_epi",
                 })
 
+        # ── Entrée structurée par travailleur ──────────────────────────────────
+        epi_status_map = {
+            "hardhat":        "worn" if person_has_hardhat else "missing",
+            "vest":           "worn" if person_has_vest    else "missing",
+            "mask":           "worn" if person_has_mask    else "missing",
+            "glass":          "worn" if person_has_glass   else "missing",
+            "safety_boots":   "worn" if person_has_boots   else "missing",
+            "ear_protection": "worn" if person_has_ear     else "missing",
+        }
+        workers.append({
+            "worker_id":    len(workers) + 1,
+            "bbox":         person["bbox"],
+            "confidence":   round(person["conf"], 2),
+            "is_compliant": is_compliant,
+            "epis":         epi_status_map,
+            "missing_count": sum(1 for s in epi_status_map.values() if s == "missing"),
+        })
+
     #========================== Stats globales =====================================
+
+    # Index inversé : workers déjà ajoutés dans la boucle persons ci-dessous
+    # (voir remplissage de `workers` dans la boucle)
+
     stats = {
         "total":         len(detections),
         "person":        len(persons),
@@ -218,10 +241,13 @@ def run_detection_with_status(image):
         missing_epi.append("safety_boots")
     if stats["ear_worn"] == 0:
         missing_epi.append("ear_protection")
-    stats["compliance"]     = len(missing_epi) == 0
-    stats["missing_epi"]    = missing_epi
-    stats["processingTime"] = round(
+    stats["compliance"]             = len(missing_epi) == 0
+    stats["missing_epi"]            = missing_epi
+    stats["processingTime"]         = round(
         results[0].speed.get("inference", 0) / 1000, 4
     ) if results else 0.0
+    stats["workers"]                = workers
+    stats["total_workers"]          = len(workers)
+    stats["non_compliant_workers"]  = sum(1 for w in workers if not w["is_compliant"])
 
     return detections, stats

@@ -2,11 +2,20 @@ import { useRef, useEffect, useState, useCallback } from "react";
 import { detectEPI } from "@/lib/epiDetectionApi";
 import { Camera, CameraOff, Upload, X } from "lucide-react";
 
+export interface WorkerDetection {
+  worker_id: number;
+  bbox: [number, number, number, number];
+  confidence: number;
+  is_compliant: boolean;
+  epis: Record<string, "worn" | "present" | "missing">;
+  missing_count: number;
+}
+
 interface WebcamFeedProps {
   isAlerted: boolean;
   cameraId?: string;
   watchedEpis?: string[];
-  onDetection?: (detections: Detection[]) => void;
+  onDetection?: (detections: Detection[], workers: WorkerDetection[], stats?: Record<string, unknown>) => void;
 }
 
 interface Detection {
@@ -14,6 +23,7 @@ interface Detection {
   confidence: number;
   bbox: [number, number, number, number];
   color: string;
+  status?: string;
 }
 
 const WebcamFeed = ({ isAlerted, cameraId, watchedEpis, onDetection }: WebcamFeedProps) => {
@@ -46,10 +56,11 @@ const WebcamFeed = ({ isAlerted, cameraId, watchedEpis, onDetection }: WebcamFee
         latestWatchedEpisRef.current,
       );
       setDetections(result.detections || []);
-      if (typeof onDetection === "function") onDetection(result.detections || []);
+      if (typeof onDetection === "function")
+        onDetection(result.detections || [], result.workers || result.stats?.workers || [], result.stats);
     } catch (e) {
       setDetections([]);
-      if (typeof onDetection === "function") onDetection([]);
+      if (typeof onDetection === "function") onDetection([], []);
       console.error("Erreur détection EPI:", e);
     } finally {
       detectionInFlightRef.current = false;

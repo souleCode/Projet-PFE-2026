@@ -18,3 +18,4 @@ backend/api/models/
 
 # Private keys
 backend/pfe-space.pem
+backend/credentials.txt

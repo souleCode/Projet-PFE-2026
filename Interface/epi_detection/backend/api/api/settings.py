@@ -16,7 +16,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'whitenoise.runserver_nostatic',  # Sert les fichiers statiques en dev avec WhiteNoise
+    'whitenoise.runserver_nostatic',  # Désactivé en dev pour permettre à runserver de servir staticfiles
   
     'rest_framework',
     'rest_framework_simplejwt',
@@ -72,7 +72,7 @@ DB_HOST = config('DB_HOST', default='')
 DB_PORT = config('DB_PORT', default='5432')
 DB_SSLMODE = config('DB_SSLMODE', default='require')
 
-USE_POSTGRES = config('USE_POSTGRES', default=False, cast=bool)
+USE_POSTGRES = config('USE_POSTGRES', default=True, cast=bool)
 
 if USE_POSTGRES:
     DATABASES = {
