@@ -122,7 +122,6 @@ def run_detection_with_status(image):
             else:
                 other_dets.append({"class": class_name, "bbox": bbox, "conf": conf})
 
-    print(f"[YOLO DEBUG] persons={len(persons)} other={len(other_dets)} classes={list(set(d['class'] for d in other_dets))}")
 
     # ── Étape 2 : pour chaque personne, vérifier ses EPIs ────────────────────
     detections = []
@@ -137,7 +136,6 @@ def run_detection_with_status(image):
                          if d["class"] in EPI_CLASSES and is_epi_worn(person["bbox"], d["bbox"])]
         person_viols  = [d for d in other_dets
                          if d["class"] in VIOLATION_CLASSES and is_epi_worn(person["bbox"], d["bbox"])]
-        print(f"[YOLO DEBUG] Worker {worker_id}: epis={[d['class'] for d in person_epis]} viols={[d['class'] for d in person_viols]}")
 
         # Statut de chaque EPI pour cette personne
         has_helmet = any(d["class"] == "helmet"      for d in person_epis)

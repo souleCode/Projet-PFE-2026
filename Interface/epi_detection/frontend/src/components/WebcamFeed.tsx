@@ -157,20 +157,36 @@ const WebcamFeed = ({ isAlerted, cameraId, watchedEpis, onDetection }: WebcamFee
     }
   }, [runDetection, stopCamera]);
 
+  // Sync canvas dimensions once when video resolution is known — never resize during detection
   useEffect(() => {
-    if (!canvasRef.current || !videoRef.current) return;
-    
-    const canvas = canvasRef.current;
     const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
+
+    const syncSize = () => {
+      if (video.videoWidth > 0 && video.videoHeight > 0) {
+        canvas.width  = video.videoWidth;
+        canvas.height = video.videoHeight;
+      }
+    };
+
+    video.addEventListener('loadedmetadata', syncSize);
+    video.addEventListener('resize', syncSize);
+    syncSize();
+    return () => {
+      video.removeEventListener('loadedmetadata', syncSize);
+      video.removeEventListener('resize', syncSize);
+    };
+  }, []);
+
+  // Draw detection boxes — never touch canvas dimensions here
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    if (video.videoWidth > 0 && video.videoHeight > 0) {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-    }
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
     if (!isActive || detections.length === 0) return;
 
     detections.forEach(det => {
@@ -179,25 +195,22 @@ const WebcamFeed = ({ isAlerted, cameraId, watchedEpis, onDetection }: WebcamFee
       const w = x2 - x1;
       const h = y2 - y1;
 
-      // Rectangle de détection
+      // Rectangle épais
       ctx.strokeStyle = det.color;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 3;
       ctx.strokeRect(x1, y1, w, h);
 
-      // Label : classe + confiance
+      // Label classe + confiance
       const conf = det.confidence != null ? ` ${(det.confidence * 100).toFixed(0)}%` : '';
       const label = `${det.class}${conf}`;
-      ctx.font = 'bold 12px monospace';
+      ctx.font = 'bold 13px monospace';
       const textW = ctx.measureText(label).width;
-      const labelY = y1 > 18 ? y1 - 4 : y1 + 16;
+      const labelY = y1 > 20 ? y1 - 5 : y1 + 18;
 
-      // Fond du label
       ctx.fillStyle = det.color;
-      ctx.fillRect(x1, labelY - 13, textW + 6, 16);
-
-      // Texte du label
+      ctx.fillRect(x1, labelY - 14, textW + 8, 18);
       ctx.fillStyle = '#ffffff';
-      ctx.fillText(label, x1 + 3, labelY);
+      ctx.fillText(label, x1 + 4, labelY);
     });
   }, [detections, isActive]);
 
@@ -254,7 +267,7 @@ const WebcamFeed = ({ isAlerted, cameraId, watchedEpis, onDetection }: WebcamFee
             muted={!isVideoMode}
             controls={isVideoMode}
             loop={isVideoMode}
-            className={`w-full h-full object-cover bg-muted ${isActive ? "block" : "hidden"}`}
+            className={`w-full h-full object-contain bg-muted ${isActive ? "block" : "hidden"}`}
           />
           <canvas
             ref={canvasRef}
