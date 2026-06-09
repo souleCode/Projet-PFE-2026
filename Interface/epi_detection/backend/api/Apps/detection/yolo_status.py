@@ -113,7 +113,7 @@ def run_detection_with_status(image):
     4. Déterminer la conformité de chaque personne
     """
     model   = get_model()
-    results = model.track(image, persist=True, conf=0.25, iou=0.45, verbose=False)
+    results = model.track(image, persist=True, conf=0.15, iou=0.45, verbose=False)
 
     # ── Étape 1 : collecter toutes les détections ─────────────────────────────
     persons      = []   # personnes détectées
@@ -133,6 +133,8 @@ def run_detection_with_status(image):
                 persons.append({"bbox": bbox, "conf": conf, "track_id": track_id})
             else:
                 other_dets.append({"class": class_name, "bbox": bbox, "conf": conf})
+
+    print(f"[YOLO DEBUG] persons={len(persons)} other={[(d['class'], d['conf']) for d in other_dets]}")
 
     # ── Étape 2 : pour chaque personne, vérifier ses EPIs ────────────────────
     detections = []
