@@ -6,8 +6,15 @@ After=network.target
 [Service]
 User=ubuntu
 Group=www-data
-WorkingDirectory=/home/ubuntu/project-pfe-space
-ExecStart=/home/ubuntu/env/bin/gunicorn --access-logfile - --workers 3 --bind unix:/run/gunicorn.sock api.wsgi:application
+WorkingDirectory=/home/ubuntu/Projet-PFE-2026/Interface/epi_detection/backend/api
+ExecStart=/home/ubuntu/Projet-PFE-2026/Interface/epi_detection/backend/env/bin/gunicorn \
+          --access-logfile - \
+          --workers 1 \
+          --timeout 300 \
+          --preload \
+          --bind unix:/run/gunicorn.sock \
+          api.wsgi:application
+
 Restart=on-failure
 
 [Install]

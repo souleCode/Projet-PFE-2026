@@ -1,21 +1,13 @@
-#!/usr/bin/bash 
+#!/usr/bin/bash
 
-sed -i 's/\[]/\["16.170.221.50"]/' /home/ubuntu/project-pfe-space/api/settings.py
+WORK_DIR=/home/ubuntu/project-pfe-space
+VENV=/home/ubuntu/env/bin
 
-python manage.py migrate 
-python manage.py makemigrations     
-python manage.py collectstatic
-sudo service gunicorn restart
-sudo service nginx restart
-#sudo tail -f /var/log/nginx/error.log
-#sudo systemctl reload nginx
-#sudo tail -f /var/log/nginx/error.log
-#sudo nginx -t
-#sudo systemctl restart gunicorn
-#sudo systemctl status gunicorn
-#sudo systemctl status nginx
-# Check the status
-#systemctl status gunicorn
-# Restart:
-#systemctl restart gunicorn
-#sudo systemctl status nginx
+cd $WORK_DIR
+
+# Apply migrations and collect static using the venv Python
+$VENV/python manage.py migrate --noinput
+$VENV/python manage.py collectstatic --noinput
+
+sudo systemctl restart gunicorn.service
+sudo systemctl restart nginx

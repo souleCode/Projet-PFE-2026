@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 
-sudo rm -rf /home/ubuntu/projec-pfe-space/*
+sudo rm -rf /home/ubuntu/project-pfe-space/*

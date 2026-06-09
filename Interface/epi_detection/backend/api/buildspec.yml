@@ -24,6 +24,8 @@ phases:
       - python manage.py makemigrations --check --dry-run
   post_build:
     commands:
+      - echo Copying requirements.txt into artifact directory
+      - cp ../requirements.txt requirements.txt
       - echo Build completed on `date`
 
 artifacts:
@@ -32,6 +34,7 @@ artifacts:
     - appspec.yml
     - manage.py
     - buildspec.yml
+    - requirements.txt
     - api/**/*
     - Apps/**/*
     - gunicorn/**/*
