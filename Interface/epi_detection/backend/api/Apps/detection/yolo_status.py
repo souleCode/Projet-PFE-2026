@@ -74,7 +74,7 @@ EPI_KEY_MAP = {
 }
 
 
-def is_epi_worn(person_bbox, epi_bbox, overlap_threshold=0.25):
+def is_epi_worn(person_bbox, epi_bbox, overlap_threshold=0.20):
     """
     Vérifie si un EPI appartient à une personne.
     Mesure quelle fraction de l'EPI se trouve à l'intérieur de la personne.
@@ -101,7 +101,11 @@ def run_detection_with_status(image):
     4. Déterminer la conformité de chaque personne
     """
     model   = get_model()
-    results = model.track(image, persist=True, conf=0.15, iou=0.45, verbose=False)
+    # Seuil bas pour person (poses variées, occlusions) ; EPI garde 0.20
+    PERSON_CONF = 0.10
+    EPI_CONF    = 0.20
+
+    results = model.track(image, persist=True, conf=PERSON_CONF, iou=0.40, verbose=False)
 
     # ── Étape 1 : collecter toutes les détections ─────────────────────────────
     persons      = []   # personnes détectées
@@ -118,8 +122,9 @@ def run_detection_with_status(image):
             track_id   = int(box.id[0]) if box.id is not None else None
 
             if class_name == "person":
-                persons.append({"bbox": bbox, "conf": conf, "track_id": track_id})
-            else:
+                if conf >= PERSON_CONF:
+                    persons.append({"bbox": bbox, "conf": conf, "track_id": track_id})
+            elif conf >= EPI_CONF:
                 other_dets.append({"class": class_name, "bbox": bbox, "conf": conf})
 
 
