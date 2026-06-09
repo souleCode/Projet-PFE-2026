@@ -86,6 +86,7 @@ if USE_POSTGRES:
             "CONN_MAX_AGE": 60,
             "OPTIONS": {
                 "sslmode": DB_SSLMODE,
+                "connect_timeout": 10,
             },
         }
     }
@@ -178,6 +179,7 @@ USE_I18N = True
 USE_TZ   = True
 
 YOLO_MODEL_PATH = BASE_DIR / 'models' / 'best.pt'
+YOLO_ONNX_PATH  = BASE_DIR / 'models' / 'best.onnx'
 
 GEMINI_API_KEY = config('GEMINI_API_KEY', default='')
 GEMINI_MODEL = config('GEMINI_MODEL', default='gemini-2.5-flash')

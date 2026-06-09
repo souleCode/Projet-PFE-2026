@@ -4,21 +4,33 @@ Logique de détection EPI avec état : porté (vert), présent (jaune), manquant
 from django.conf import settings
 from ultralytics import YOLO
 import threading
+import numpy as np
 
 _model = None
 _lock  = threading.Lock()
 
 
 def get_model() -> YOLO:
-    """Charge le modèle YOLO (singleton thread-safe)"""
+    """Charge le modèle YOLO (singleton thread-safe). Préfère ONNX si disponible (moins de RAM)."""
     global _model
     if _model is None:
         with _lock:
             if _model is None:
-                model_path = settings.YOLO_MODEL_PATH
-                print(f"[YOLO] Chargement du modèle depuis {model_path}...")
+                onnx_path = settings.YOLO_ONNX_PATH
+                pt_path   = settings.YOLO_MODEL_PATH
+                if onnx_path.exists():
+                    model_path = onnx_path
+                    print(f"[YOLO] ONNX trouvé — chargement depuis {model_path}")
+                else:
+                    model_path = pt_path
+                    print(f"[YOLO] ONNX absent — fallback sur {model_path}")
                 _model = YOLO(str(model_path))
                 print(f"[YOLO] Modèle chargé. Classes : {_model.names}")
+                # Warm-up : compile le graph ONNX/PyTorch pour que la première
+                # vraie requête ne soit pas lente.
+                dummy = np.zeros((640, 640, 3), dtype=np.uint8)
+                _model(dummy, verbose=False)
+                print("[YOLO] Warm-up terminé.")
     return _model
 
 
@@ -72,7 +84,8 @@ def run_detection_with_status(image):
     - stats = {total, person, hardhat_worn, vest_worn, ..., compliance, missing_epi}
     """
     model   = get_model()
-    results = model(image)
+    # track(persist=True) maintient les IDs entre frames successives
+    results = model.track(image, persist=True, verbose=False)
 
     persons = []
     epis    = {}  
@@ -87,9 +100,10 @@ def run_detection_with_status(image):
             class_name = model.names[cls_id]
             conf       = round(float(box.conf[0]), 4)
             bbox       = list(map(int, box.xyxy[0]))
+            track_id   = int(box.id[0]) if box.id is not None else None
 
             if class_name == "person":
-                persons.append({"bbox": bbox, "conf": conf})
+                persons.append({"bbox": bbox, "conf": conf, "track_id": track_id})
             elif class_name in EPI_CLASSES:
                 if class_name not in epis:
                     epis[class_name] = []
@@ -196,7 +210,7 @@ def run_detection_with_status(image):
             "ear_protection": "worn" if person_has_ear     else "missing",
         }
         workers.append({
-            "worker_id":    len(workers) + 1,
+            "worker_id":    person["track_id"] if person["track_id"] is not None else len(workers) + 1,
             "bbox":         person["bbox"],
             "confidence":   round(person["conf"], 2),
             "is_compliant": is_compliant,
