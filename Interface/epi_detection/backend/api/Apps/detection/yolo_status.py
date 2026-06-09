@@ -106,16 +106,18 @@ def is_epi_worn(person_bbox, epi_bbox, iou_threshold=0.03):
 
 def run_detection_with_status(image):
     """
-    Lance YOLO et détermine l'état EPI de chaque personne.
-    Classes du modèle : Gloves, Safety Shoe, helmet, no Gloves, no helmet,
-                        no mask, no vest, person, vest
+    Logique :
+    1. Détecter toutes les classes YOLO sur l'image
+    2. Isoler les personnes
+    3. Pour chaque personne, vérifier les EPIs qui se chevauchent avec elle
+    4. Déterminer la conformité de chaque personne
     """
     model   = get_model()
     results = model.track(image, persist=True, conf=0.25, iou=0.45, verbose=False)
 
-    persons  = []
-    epis     = {}  # class_name → [{"bbox", "conf"}]
-    viol_map = {}  # violation_class → [{"bbox", "conf"}]
+    # ── Étape 1 : collecter toutes les détections ─────────────────────────────
+    persons      = []   # personnes détectées
+    other_dets   = []   # tout le reste (EPIs, violations)
 
     for r in results:
         for box in r.boxes:
@@ -129,64 +131,48 @@ def run_detection_with_status(image):
 
             if class_name == "person":
                 persons.append({"bbox": bbox, "conf": conf, "track_id": track_id})
-            elif class_name in EPI_CLASSES:
-                epis.setdefault(class_name, []).append({"bbox": bbox, "conf": conf})
-            elif class_name in VIOLATION_CLASSES:
-                viol_map.setdefault(class_name, []).append({"bbox": bbox, "conf": conf})
+            else:
+                other_dets.append({"class": class_name, "bbox": bbox, "conf": conf})
 
+    # ── Étape 2 : pour chaque personne, vérifier ses EPIs ────────────────────
     detections = []
     workers    = []
-    worn_epis  = {cls: [] for cls in EPI_CLASSES}
-    free_epis  = {cls: [] for cls in EPI_CLASSES}
+    hardhat_worn_count = vest_worn_count = gloves_worn_count = boots_worn_count = 0
 
-    # ── Bboxes des EPIs positifs ──────────────────────────────────────────────
-    for epi_class, epi_list in epis.items():
-        for epi in epi_list:
-            is_worn = any(is_epi_worn(p["bbox"], epi["bbox"]) for p in persons)
-            target  = worn_epis if is_worn else free_epis
-            target[epi_class].append(epi)
-            detections.append({
-                "class":      EPI_KEY_MAP.get(epi_class, epi_class),
-                "confidence": epi["conf"],
-                "bbox":       epi["bbox"],
-                "color":      COLORS["worn"] if is_worn else COLORS["present"],
-                "status":     "worn" if is_worn else "present",
-            })
-
-    # ── Bboxes des violations directes ───────────────────────────────────────
-    for viol_class, viol_list in viol_map.items():
-        for v in viol_list:
-            detections.append({
-                "class":      viol_class,
-                "confidence": v["conf"],
-                "bbox":       v["bbox"],
-                "color":      COLORS["missing"],
-                "status":     "violation",
-            })
-
-    # ── Analyse par personne ──────────────────────────────────────────────────
     for person in persons:
         worker_id = _get_worker_id(person["track_id"])
 
-        # EPI porté : détection positive près de la personne
+        # Trouver tous les EPIs/violations qui chevauchent cette personne
+        person_epis   = [d for d in other_dets
+                         if d["class"] in EPI_CLASSES and is_epi_worn(person["bbox"], d["bbox"])]
+        person_viols  = [d for d in other_dets
+                         if d["class"] in VIOLATION_CLASSES and is_epi_worn(person["bbox"], d["bbox"])]
+
+        # Statut de chaque EPI pour cette personne
+        has_helmet = any(d["class"] == "helmet"      for d in person_epis)
+        has_vest   = any(d["class"] == "vest"        for d in person_epis)
+        has_gloves = any(d["class"] == "Gloves"      for d in person_epis)
+        has_boots  = any(d["class"] == "Safety Shoe" for d in person_epis)
+
+        # Une violation directe annule le statut positif
+        if any(d["class"] == "no helmet" for d in person_viols): has_helmet = False
+        if any(d["class"] == "no vest"   for d in person_viols): has_vest   = False
+        if any(d["class"] == "no Gloves" for d in person_viols): has_gloves = False
+
         person_has = {
-            "hardhat":      any(is_epi_worn(person["bbox"], e["bbox"]) for e in epis.get("helmet", [])),
-            "vest":         any(is_epi_worn(person["bbox"], e["bbox"]) for e in epis.get("vest", [])),
-            "gloves":       any(is_epi_worn(person["bbox"], e["bbox"]) for e in epis.get("Gloves", [])),
-            "safety_boots": any(is_epi_worn(person["bbox"], e["bbox"]) for e in epis.get("Safety Shoe", [])),
+            "hardhat":      has_helmet,
+            "vest":         has_vest,
+            "gloves":       has_gloves,
+            "safety_boots": has_boots,
         }
-
-        # Violation directe près de la personne → force le statut à manquant
-        if any(is_epi_worn(person["bbox"], v["bbox"]) for v in viol_map.get("no helmet", [])):
-            person_has["hardhat"] = False
-        if any(is_epi_worn(person["bbox"], v["bbox"]) for v in viol_map.get("no vest", [])):
-            person_has["vest"] = False
-        if any(is_epi_worn(person["bbox"], v["bbox"]) for v in viol_map.get("no Gloves", [])):
-            person_has["gloves"] = False
-
         is_compliant = all(person_has.values())
 
-        # Bbox personne avec label "Worker N"
+        if has_helmet: hardhat_worn_count += 1
+        if has_vest:   vest_worn_count    += 1
+        if has_gloves: gloves_worn_count  += 1
+        if has_boots:  boots_worn_count   += 1
+
+        # Bbox de la personne
         detections.append({
             "class":      f"Worker {worker_id}",
             "confidence": person["conf"],
@@ -194,6 +180,26 @@ def run_detection_with_status(image):
             "color":      COLORS["person"] if is_compliant else COLORS["missing"],
             "status":     "compliant" if is_compliant else "missing_epi",
         })
+
+        # Bboxes des EPIs associés à cette personne
+        for epi in person_epis:
+            detections.append({
+                "class":      EPI_KEY_MAP.get(epi["class"], epi["class"]),
+                "confidence": epi["conf"],
+                "bbox":       epi["bbox"],
+                "color":      COLORS["worn"],
+                "status":     "worn",
+            })
+
+        # Bboxes des violations associées à cette personne
+        for viol in person_viols:
+            detections.append({
+                "class":      viol["class"],
+                "confidence": viol["conf"],
+                "bbox":       viol["bbox"],
+                "color":      COLORS["missing"],
+                "status":     "violation",
+            })
 
         epi_status_map = {k: ("worn" if v else "missing") for k, v in person_has.items()}
         workers.append({
@@ -206,33 +212,29 @@ def run_detection_with_status(image):
         })
 
     # ── Stats globales ────────────────────────────────────────────────────────
-    stats = {
-        "total":          len(detections),
-        "person":         len(persons),
-        "hardhat_worn":   len(worn_epis["helmet"]),
-        "vest_worn":      len(worn_epis["vest"]),
-        "gloves_worn":    len(worn_epis["Gloves"]),
-        "boots_worn":     len(worn_epis["Safety Shoe"]),
-        "violations":     sum(len(v) for v in viol_map.values()),
-    }
-
     missing_epi = [
         k for k, worn in {
-            "hardhat":      stats["hardhat_worn"],
-            "vest":         stats["vest_worn"],
-            "gloves":       stats["gloves_worn"],
-            "safety_boots": stats["boots_worn"],
+            "hardhat":      hardhat_worn_count,
+            "vest":         vest_worn_count,
+            "gloves":       gloves_worn_count,
+            "safety_boots": boots_worn_count,
         }.items()
         if worn == 0 and len(persons) > 0
     ]
 
-    stats["compliance"]            = len(persons) == 0 or len(missing_epi) == 0
-    stats["missing_epi"]           = missing_epi
-    stats["processingTime"]        = round(
-        results[0].speed.get("inference", 0) / 1000, 4
-    ) if results else 0.0
-    stats["workers"]               = workers
-    stats["total_workers"]         = len(workers)
-    stats["non_compliant_workers"] = sum(1 for w in workers if not w["is_compliant"])
+    stats = {
+        "total":                 len(detections),
+        "person":                len(persons),
+        "hardhat_worn":          hardhat_worn_count,
+        "vest_worn":             vest_worn_count,
+        "gloves_worn":           gloves_worn_count,
+        "boots_worn":            boots_worn_count,
+        "compliance":            len(persons) == 0 or len(missing_epi) == 0,
+        "missing_epi":           missing_epi,
+        "processingTime":        round(results[0].speed.get("inference", 0) / 1000, 4) if results else 0.0,
+        "workers":               workers,
+        "total_workers":         len(workers),
+        "non_compliant_workers": sum(1 for w in workers if not w["is_compliant"]),
+    }
 
     return detections, stats
