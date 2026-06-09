@@ -74,34 +74,22 @@ EPI_KEY_MAP = {
 }
 
 
-def iou(box1, box2):
-    """Calcule l'IoU (Intersection over Union) entre deux bounding boxes."""
-    x1_min, y1_min, x1_max, y1_max = box1
-    x2_min, y2_min, x2_max, y2_max = box2
-
-    inter_x_min = max(x1_min, x2_min)
-    inter_y_min = max(y1_min, y2_min)
-    inter_x_max = min(x1_max, x2_max)
-    inter_y_max = min(y1_max, y2_max)
-
-    if inter_x_max < inter_x_min or inter_y_max < inter_y_min:
-        return 0.0
-
-    inter_area = (inter_x_max - inter_x_min) * (inter_y_max - inter_y_min)
-    box1_area  = (x1_max - x1_min) * (y1_max - y1_min)
-    box2_area  = (x2_max - x2_min) * (y2_max - y2_min)
-    union_area = box1_area + box2_area - inter_area
-
-    return inter_area / union_area if union_area > 0 else 0.0
-
-
-def is_epi_worn(person_bbox, epi_bbox, iou_threshold=0.03):
+def is_epi_worn(person_bbox, epi_bbox, overlap_threshold=0.25):
     """
-    Vérifie si un EPI est porté par une personne.
-    Un EPI est considéré "porté" si son IoU avec la personne > seuil.
-    Seuil bas (0.1) car casque/gilet = petite zone vs personne entière.
+    Vérifie si un EPI appartient à une personne.
+    Mesure quelle fraction de l'EPI se trouve à l'intérieur de la personne.
+    IoU standard est trop bas (helmet petit vs person grand) — on utilise
+    intersection / aire_EPI à la place.
     """
-    return iou(person_bbox, epi_bbox) > iou_threshold
+    px1, py1, px2, py2 = person_bbox
+    ex1, ey1, ex2, ey2 = epi_bbox
+
+    ix = max(0, min(px2, ex2) - max(px1, ex1))
+    iy = max(0, min(py2, ey2) - max(py1, ey1))
+    inter = ix * iy
+
+    epi_area = max(1, (ex2 - ex1) * (ey2 - ey1))
+    return (inter / epi_area) > overlap_threshold
 
 
 def run_detection_with_status(image):
@@ -134,7 +122,7 @@ def run_detection_with_status(image):
             else:
                 other_dets.append({"class": class_name, "bbox": bbox, "conf": conf})
 
-    print(f"[YOLO DEBUG] persons={len(persons)} other={[(d['class'], d['conf']) for d in other_dets]}")
+    print(f"[YOLO DEBUG] persons={len(persons)} other={len(other_dets)} classes={list(set(d['class'] for d in other_dets))}")
 
     # ── Étape 2 : pour chaque personne, vérifier ses EPIs ────────────────────
     detections = []
@@ -149,6 +137,7 @@ def run_detection_with_status(image):
                          if d["class"] in EPI_CLASSES and is_epi_worn(person["bbox"], d["bbox"])]
         person_viols  = [d for d in other_dets
                          if d["class"] in VIOLATION_CLASSES and is_epi_worn(person["bbox"], d["bbox"])]
+        print(f"[YOLO DEBUG] Worker {worker_id}: epis={[d['class'] for d in person_epis]} viols={[d['class'] for d in person_viols]}")
 
         # Statut de chaque EPI pour cette personne
         has_helmet = any(d["class"] == "helmet"      for d in person_epis)
