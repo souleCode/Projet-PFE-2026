@@ -157,7 +157,7 @@ const WebcamFeed = ({ isAlerted, cameraId, watchedEpis, onDetection }: WebcamFee
     }
   }, [runDetection, stopCamera]);
 
-  // Sync canvas resolution to video native size — once on loadedmetadata
+  // Sync canvas resolution to video native size
   useEffect(() => {
     const video  = videoRef.current;
     const canvas = canvasRef.current;
@@ -169,15 +169,29 @@ const WebcamFeed = ({ isAlerted, cameraId, watchedEpis, onDetection }: WebcamFee
       }
     };
     video.addEventListener('loadedmetadata', sync);
-    return () => video.removeEventListener('loadedmetadata', sync);
+    video.addEventListener('loadeddata', sync);
+    sync(); // si loadedmetadata déjà déclenché avant l'ajout du listener
+    return () => {
+      video.removeEventListener('loadedmetadata', sync);
+      video.removeEventListener('loadeddata', sync);
+    };
   }, []);
 
   // Draw detection boxes — canvas is native resolution, CSS scales it uniformly
   useEffect(() => {
     const canvas = canvasRef.current;
+    const video  = videoRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+
+    // S'assurer que les dimensions sont correctes même si loadedmetadata était trop tôt
+    if (video && video.videoWidth > 0 && video.videoHeight > 0) {
+      if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+        canvas.width  = video.videoWidth;
+        canvas.height = video.videoHeight;
+      }
+    }
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (!isActive || detections.length === 0) return;
