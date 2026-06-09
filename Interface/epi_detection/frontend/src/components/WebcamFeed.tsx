@@ -87,9 +87,7 @@ const WebcamFeed = ({ isAlerted, cameraId, watchedEpis, onDetection }: WebcamFee
           if (ctx) {
             ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
             canvas.toBlob(async (blob) => {
-              if (blob) {
-                await runDetection(blob);
-              }
+              if (blob) await runDetection(blob);
             }, "image/jpeg", 0.85);
           }
         }, 2000);
@@ -151,9 +149,7 @@ const WebcamFeed = ({ isAlerted, cameraId, watchedEpis, onDetection }: WebcamFee
           if (ctx) {
             ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
             canvas.toBlob(async (blob) => {
-              if (blob) {
-                await runDetection(blob);
-              }
+              if (blob) await runDetection(blob);
             }, "image/jpeg", 0.85);
           }
         }, 1000);

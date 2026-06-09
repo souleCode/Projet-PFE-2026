@@ -3,6 +3,8 @@ djangorestframework
 djangorestframework-simplejwt
 django-cors-headers
 ultralytics
+onnxruntime
+lap>=0.5.12
 Pillow
 reportlab
 python-decouple
