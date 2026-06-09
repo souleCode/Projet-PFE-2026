@@ -39,7 +39,7 @@ def get_model() -> YOLO:
                 else:
                     model_path = pt_path
                     print(f"[YOLO] ONNX absent — fallback sur {model_path}")
-                _model = YOLO(str(model_path))
+                _model = YOLO(str(model_path), task='detect')
                 print(f"[YOLO] Modèle chargé. Classes : {_model.names}")
                 # Warm-up : compile le graph ONNX/PyTorch pour que la première
                 # vraie requête ne soit pas lente.
@@ -109,7 +109,7 @@ def run_detection_with_status(image):
                         no mask, no vest, person, vest
     """
     model   = get_model()
-    results = model.track(image, persist=True, verbose=False)
+    results = model.track(image, persist=True, conf=0.25, iou=0.45, verbose=False)
 
     persons  = []
     epis     = {}  # class_name → [{"bbox", "conf"}]
